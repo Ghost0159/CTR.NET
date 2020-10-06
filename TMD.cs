@@ -69,5 +69,24 @@ namespace CTR_LIB
       this.BootCount = bootCount;
       this.UnusedPadding = unusedPadding;
     }
+    
+    public override string ToString()
+    {
+      string result = $"Signature Name: {this.SignatureName}\nSignature Size: {this.SignatureSize} (0x{Convert.ToString(this.SignatureSize, 16)}) bytes\nSignature Padding: {this.SignaturePadding} (0x{Convert.ToString(this.SignaturePadding, 16)}) bytes\nTitle ID: {this.TitleId.Hex()}\nSave Data Size: {this.SaveDataSize} (0x{Convert.ToString(this.SaveDataSize, 16)}) bytes\nSRL Save Data Size: {this.SrlSaveDataSize} (0x{Convert.ToString(this.SrlSaveDataSize, 16)}) bytes\nTitle Version: {this.TitleVersion} ({this.RawTitleVersion})\nAmount of contents defined in TMD: {this.ContentCount}\nContent Info Records Hash: {this.ContentInfoRecordsHash.Hex()}\n";
+      
+      foreach (ContentChunkRecord ccr in this.ContentChunkRecords)
+      {
+        result += $"\n{ccr.ToString()}\n";
+      }
+      
+      foreach (ContentInfoRecord cir in this.ContentInfoRecords)
+      {
+        result += $"\n{cir.ToString()}\n";
+      }
+      
+      result += $"\nIssuer: {this.Issuer}\nUnused Version: {this.UnusedVersion.Hex()}\nCA CRL Version: {this.CaCrlVersion.Hex()}\nReserved (1): {this.Reserved1.Hex()}\nSystem Version: {this.SystemVersion.Hex()}\nGroup ID: {this.GroupId.Hex()}\nReserved (2): {this.Reserved2.Hex()}\nSRL Flag: {this.SrlFlag.Hex()}\nReserved (3): {this.Reserved3.Hex()}\nAccess Rights: {this.AccessRights.Hex()}\nBoot Count: {this.BootCount.Hex()}\nUnused Padding: {this.UnusedPadding.Hex()}";
+      
+      return result;
+    }
   }
 }

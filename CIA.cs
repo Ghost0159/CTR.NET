@@ -20,14 +20,15 @@ namespace CTR_LIB
     
     public static int AlignSize = 64;
     
-    public CIASection ArchiveHeader { get; private set; }
-    public CIASection CertificateChain { get; private set; }
-    public CIASection Ticket { get; private set; }
-    public CIASection TitleMetadata { get; private set; }
-    public CIASection Application { get; private set; }
-    public CIASection Manual { get; private set; }
-    public CIASection DownloadPlayChild { get; private set; }
-    public CIASection Meta { get; private set; }
+    public CIASectionInfo ArchiveHeaderInfo { get; private set; }
+    public CIASectionInfo CertificateChainInfo { get; private set; }
+    public CIASectionInfo TicketInfo { get; private set; }
+    public CIASectionInfo TitleMetadataInfo { get; private set; }
+    public CIASectionInfo ApplicationInfo { get; private set; }
+    public CIASectionInfo ManualInfo { get; private set; }
+    public CIASectionInfo DownloadPlayChildInfo { get; private set; }
+    public CIASectionInfo MetaInfo { get; private set; }
+    public TMD TitleMetadata { get; private set; }
     
     public CIA(string pathToCIA)
     {
@@ -36,27 +37,27 @@ namespace CTR_LIB
         throw new FileNotFoundException($"File at {pathToCIA} was not found.");
       }
       
-      int header = Tools.IntLE(Tools.ReadBytes(pathToCIA, 0x0, 0x4));
+      int header = Tools.ReadBytes(pathToCIA, 0x0, 0x4).IntLE();
         
       if(header.ToString("X4") != "2020")
       {
-        throw new ArgumentException($"File (pathToCIA) is not a CIA.");
+        throw new ArgumentException($"File (pathToCIA) is not a CIA, because the header is not 0x2020 (8224).");
       }
       
-      int cert_chain_size = Tools.IntLE(Tools.ReadBytes(pathToCIA, 0x8, 0xC));
-      int ticket_size = Tools.IntLE(Tools.ReadBytes(pathToCIA, 0xC, 0x10));
-      int tmd_size = Tools.IntLE(Tools.ReadBytes(pathToCIA, 0x10, 0x14));
-      int meta_size = Tools.IntLE(Tools.ReadBytes(pathToCIA, 0x14, 0x18));
-      int content_size = Tools.IntLE(Tools.ReadBytes(pathToCIA, 0x18, 0x20));
+      int certChainSize = Tools.ReadBytes(pathToCIA, 0x8, 0xC).IntLE();
+      int ticketSize = Tools.ReadBytes(pathToCIA, 0xC, 0x10).IntLE();
+      int tmdSize = Tools.ReadBytes(pathToCIA, 0x10, 0x14).IntLE();
+      int metaSize = Tools.ReadBytes(pathToCIA, 0x14, 0x18).IntLE();
+      int contentSize = Tools.ReadBytes(pathToCIA, 0x18, 0x20).IntLE();
       
-      byte[] content_index = Tools.ReadBytes(pathToCIA, 0x20, 0x2020);
+      byte[] contentIndex = Tools.ReadBytes(pathToCIA, 0x20, 0x2020);
       
       List<int> ActiveContents = new List<int>();
       
-      for (int i = 0; i < content_index.Length; i++) 
+      for (int i = 0; i < contentIndex.Length; i++) 
       {
         int offset = i * 8;
-        byte current = content_index[i];
+        byte current = contentIndex[i];
         
         for (int j = 7; j > -1; j -= 1) 
         {
@@ -69,20 +70,22 @@ namespace CTR_LIB
         }
       }
       
-      int cert_chain_offset = Tools.RoundUp(header, AlignSize);
-      int ticket_offset = cert_chain_offset + Tools.RoundUp(cert_chain_size, AlignSize);
-      int tmd_offset = ticket_offset + Tools.RoundUp(ticket_size, AlignSize);
-      int content_offset = tmd_offset + Tools.RoundUp(tmd_size, AlignSize);
-      int meta_offset = content_offset + Tools.RoundUp(content_size, AlignSize);
+      int certChainOffset = Tools.RoundUp(header, AlignSize);
+      int ticketOffset = certChainOffset + Tools.RoundUp(certChainSize, AlignSize);
+      int tmdOffset = ticketOffset + Tools.RoundUp(ticketSize, AlignSize);
+      int contentOffset = tmdOffset + Tools.RoundUp(tmdSize, AlignSize);
+      int metaOffset = contentOffset + Tools.RoundUp(contentSize, AlignSize);
       
-      this.ArchiveHeader = new CIASection((int)ContentType.ArchiveHeader, header, 0);
-      this.CertificateChain = new CIASection((int)ContentType.CertificateChain, cert_chain_offset, cert_chain_size);
-      this.Ticket = new CIASection((int)ContentType.Ticket, ticket_offset, ticket_size);
-      this.TitleMetadata = new CIASection((int)ContentType.TitleMetadata, tmd_offset, tmd_size);
-      this.Application = new CIASection((int)ContentType.Application, content_offset, content_size);
-      if (meta_size > 0)
+      this.ArchiveHeaderInfo = new CIASectionInfo("Archive Header", (int)ContentType.ArchiveHeader, 0x0, header);
+      this.CertificateChainInfo = new CIASectionInfo("Certificate Chain", (int)ContentType.CertificateChain, certChainOffset, certChainSize);
+      this.TicketInfo = new CIASectionInfo("Ticket", (int)ContentType.Ticket, ticketOffset, ticketSize);
+      this.TitleMetadataInfo = new CIASectionInfo("Title Metadata (TMD)", (int)ContentType.TitleMetadata, tmdOffset, tmdSize);
+      this.ApplicationInfo = new CIASectionInfo("Contents", (int)ContentType.Application, contentOffset, contentSize);
+      this.TitleMetadata = TMDReader.Read(Tools.ReadBytes(pathToCIA, tmdOffset, tmdOffset + tmdSize), true);
+      
+      if (metaSize > 0)
       {
-        this.Meta = new CIASection((int)ContentType.Meta, meta_offset, meta_size);
+        this.MetaInfo = new CIASectionInfo("Meta", (int)ContentType.Meta, metaOffset, metaSize);
       }
     }
   }

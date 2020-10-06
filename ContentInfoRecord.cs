@@ -12,5 +12,7 @@ namespace CTR_LIB
       this.CommandCount = commandCount;
       this.Hash = hash;
     }
+    
+    public override string ToString() => $"CONTENT INFO RECORD:\n\nIndex Offset: {this.IndexOffset}\nCommand Count: {this.CommandCount}\nHash: {this.Hash.Hex()}";
   }
 }

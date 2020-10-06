@@ -68,16 +68,6 @@ namespace CTR_LIB
     {
       return (int)Math.Ceiling((double)offset / (double)alignment) * alignment;
     }
-  
-    public static int IntLE(byte[] data, int startIndex = 0) 
-    {
-      return (data[startIndex + 3] << 24) | (data[startIndex + 2] << 16) | (data[startIndex + 1] << 8) | data[startIndex];
-    }
-    
-    public static int IntBE(byte[] data, int startIndex = 0)
-    {
-      return (data[startIndex] << 24) | (data[startIndex + 1] << 16) | (data[startIndex + 2] << 8) | data[startIndex + 3];
-    }
     
     public static byte[] ReadFromStream(Stream s, Int32 length)
     {
@@ -118,6 +108,20 @@ namespace CTR_LIB
   
   static class ExtensionMethods
   {
+    public static int IntLE(this byte[] data, int startIndex = 0) => (data[startIndex + 3] << 24) | (data[startIndex + 2] << 16) | (data[startIndex + 1] << 8) | data[startIndex];
+    
+    public static int IntBE(this byte[] data, int startIndex = 0)
+    {
+      if (data.Length < 4)
+      {
+        return (data[0] << 8) | data[1];
+      }
+      else 
+      {
+        return (data[startIndex] << 24) | (data[startIndex + 1] << 16) | (data[startIndex + 2] << 8) | data[startIndex + 3]; 
+      }
+    }
+    
     public static string Hex(this byte[] bytes)
     {
       string output = "";

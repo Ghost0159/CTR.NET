@@ -20,9 +20,10 @@ namespace CTR_LIB
     
     private static bool BoolFromInt(int input) => (input == 0) ? false : true;
     
+    public override string ToString() => $"================================\nCONTENT TYPE FLAGS:\n\nENCRYPTED: {this.Encrypted}\nIS DISC: {this.IsDisc}\nCFM: {this.Cfm}\nOPTIONAL: {this.Optional}\nSHARED: {this.Shared}\n================================";
+    
     public static ContentTypeFlags GetFlags(int flags)
     {
-      Console.WriteLine(flags);
       
       return new ContentTypeFlags(
         BoolFromInt(flags & 1),

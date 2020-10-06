@@ -43,9 +43,9 @@ namespace CTR_LIB
     public static TMD Read(byte[] tmdData, bool verifyHashes = true)
     {
       MemoryStream tmdDataStream = new MemoryStream(tmdData);
-      Tuple<String, Int32, Int32> SigTypeData = SignatureType(Tools.IntBE(Tools.ReadFromStream(tmdDataStream, 0x4)));
+      Tuple<String, Int32, Int32> SigTypeData = SignatureType(Convert.ToInt32(Tools.ReadFromStream(tmdDataStream, 0x4).Hex(), 16));
       
-      if (SigTypeData.Item2 == 0 || SigTypeData.Item3 == 0) 
+      if (SigTypeData.Item2 == 0) 
       {
         Console.WriteLine("Could not determine Signature Type of TMD.");
       }
@@ -65,11 +65,11 @@ namespace CTR_LIB
       }
       
       byte[] titleId = header.Copy(0x4C, 0x54);
-      int saveSize = Tools.IntLE(header.Copy(0x5A, 0x5E));
-      int srlSaveSize = Tools.IntLE(header.Copy(0x5E, 0x62));
-      int version = Convert.ToInt32(header.Copy(0x9C, 0x9E).Hex(), 16);
+      int saveSize = header.Copy(0x5A, 0x5E).IntLE();
+      int srlSaveSize = header.Copy(0x5E, 0x62).IntLE();
+      int version = header.Copy(0x9C, 0x9E).IntBE();
       string versionString = $"{(version >> 10) & 0x3F}.{(version >> 4) & 0x3F}.{version & 0xF}";
-      int contentCount = Convert.ToInt32(header.Copy(0x9E, 0xA0).Hex(), 16);
+      int contentCount = header.Copy(0x9E, 0xA0).IntBE();
       byte[] contentInfoRecordsHash = header.Copy(0xA4, 0xC4);
       byte[] contentInfoRecordsRaw = Tools.ReadFromStream(tmdDataStream, 0x900);
       
@@ -92,11 +92,10 @@ namespace CTR_LIB
       for (int i = 0; i < contentCount * ChunkRecordSize; i += ChunkRecordSize) 
       {
         byte[] contentChunk = contentChunkRecordsRaw.Copy(i, i + ChunkRecordSize);
-        Console.WriteLine(contentChunk.Copy(0x6, 0x8).Hex());
         chunkRecords.Add(new ContentChunkRecord(
           contentChunk.Copy(0x0, 0x4).Hex(),
-          Convert.ToInt32(contentChunk.Copy(0x4, 0x6).Hex(), 16),
-          ContentTypeFlags.GetFlags(Convert.ToInt32(contentChunk.Copy(0x6, 0x8).Hex(), 16)),
+          contentChunk.Copy(0x4, 0x6).IntBE(),
+          ContentTypeFlags.GetFlags(contentChunk.Copy(0x6, 0x8).IntBE()),
           Convert.ToInt32(contentChunk.Copy(0x8, 0x10).Hex(), 16),
           contentChunk.Copy(0x10, 0x30)
         ));
@@ -107,17 +106,16 @@ namespace CTR_LIB
       for (int i = 0; i < 0x900; i += 0x24) 
       {
         byte[] infoRecord = contentInfoRecordsRaw.Copy(i, i + 0x24);
+        
         if (infoRecord.Hex() != Enumerable.Repeat((byte)0x0, 0x24).ToArray().Hex())
         {
           infoRecords.Add(new ContentInfoRecord(
-            Convert.ToInt32(infoRecord.Copy(0x0, 0x2).Hex(), 16),
-            Convert.ToInt32(infoRecord.Copy(0x2, 0x4).Hex(), 16),
+            infoRecord.Copy(0x0, 0x2).IntBE(),
+            infoRecord.Copy(0x2, 0x4).IntBE(),
             infoRecord.Copy(0x4, 0x24)
           ));
         }
       }
-      
-      Console.WriteLine(infoRecords.Count);
       
       if (verifyHashes)
       {
@@ -148,9 +146,10 @@ namespace CTR_LIB
           
           if (hash.Hex() != infoRecord.Hash.Hex())
           {
-            Console.WriteLine("Expected: " + infoRecord.Hash.Hex());
+            
+            Console.WriteLine();
             Console.WriteLine("Got: " + hash.Hex());
-            throw new ArgumentException("Invalid Info Records Detected.");
+            throw new ArgumentException($"Invalid Info Records Detected.\nExpected: {infoRecord.Hash.Hex()}\nGot: {hash.Hex()}");
           }
         }
       }
@@ -170,38 +169,7 @@ namespace CTR_LIB
       byte[] bootCount = header.Copy(0xA0, 0xA2);
       byte[] unusedPadding = header.Copy(0xA2, 0xA4);
       
-      return new TMD(
-        tmdData,
-        sigName,
-        sigSize,
-        sigPadding,
-        signature,
-        header,
-        titleId,
-        saveSize,
-        srlSaveSize,
-        version,
-        versionString,
-        contentCount,
-        contentInfoRecordsRaw,
-        contentInfoRecordsHash,
-        contentChunkRecordsRaw,
-        chunkRecords,
-        infoRecords,
-        issuer,
-        versionUnused,
-        caCrlVersion,
-        reserved1,
-        systemVersion,
-        titleType,
-        groupId,
-        reserved2,
-        srlFlag,
-        reserved3,
-        accessRights,
-        bootCount,
-        unusedPadding
-      );
+      return new TMD(tmdData, sigName, sigSize, sigPadding, signature, header, titleId, saveSize, srlSaveSize, version, versionString, contentCount, contentInfoRecordsRaw, contentInfoRecordsHash, contentChunkRecordsRaw, chunkRecords, infoRecords, issuer, versionUnused, caCrlVersion, reserved1, systemVersion, titleType, groupId, reserved2, srlFlag, reserved3, accessRights, bootCount, unusedPadding);
     }
   }
 }

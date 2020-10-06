@@ -20,6 +20,8 @@ namespace CTR_LIB
       this.Hash = hash;
     }
     
+    public override string ToString() => $"--------------------------------\nCONTENT CHUNK RECORD INFO FOR INDEX {this.ContentIndex.ToString("X4")}.{this.ID}:\n\nID: {this.ID}\nContent Index: {this.ContentIndex} ({this.ContentIndex.ToString("X4")})\n\n{this.Type.ToString()}\n\nContent Size: {this.Size} (0x{Convert.ToString(this.Size, 16)}) bytes\nHash: {this.Hash.Hex()}\n--------------------------------";
+    
     public byte[] ToByteArray()
     {
       return Tools.HexToBytes(this.ID)
