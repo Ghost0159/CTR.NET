@@ -1,6 +1,6 @@
 namespace CTR_LIB
 {
-  class ContentInfoRecord
+  public class ContentInfoRecord
   {
     public int IndexOffset { get; private set; }
     public int CommandCount  { get; private set; }

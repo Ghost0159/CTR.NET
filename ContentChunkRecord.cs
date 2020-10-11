@@ -3,7 +3,7 @@ using System.Text;
 
 namespace CTR_LIB
 {
-  class ContentChunkRecord
+  public class ContentChunkRecord
   {
     public string ID { get; private set; }
     public int ContentIndex { get; private set; }

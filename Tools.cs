@@ -82,6 +82,19 @@ namespace CTR_LIB
       return output.ToArray();
     }
     
+    public static byte[] ReadFromStream(Stream s, long length)
+    {
+      List<byte> output = new List<byte>();
+      long alength = s.Position + length;
+      
+      for (long i = s.Position; i < alength; i++)
+      {
+        output.Add((byte)s.ReadByte());
+      }
+      
+      return output.ToArray();
+    }
+    
     public static byte[] HashSHA256(byte[] inputData)
     {
       byte[] hash = Array.Empty<byte>();

@@ -1,7 +1,7 @@
 using System;
 namespace CTR_LIB
 {
-  class ContentTypeFlags
+  public class ContentTypeFlags
   {
     public bool Encrypted { get; private set; }
     public bool IsDisc { get; private set; }

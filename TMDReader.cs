@@ -6,7 +6,7 @@ using System.Collections.Generic;
 
 namespace CTR_LIB
 {
-  static class TMDReader
+  public static class TMDReader
   {
     public static Tuple<String, Int32, Int32> SignatureType(Int32 sigData)
     {

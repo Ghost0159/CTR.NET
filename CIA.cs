@@ -1,10 +1,11 @@
 using System;
 using System.IO;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace CTR_LIB
 {
-  class CIA
+  public class CIA
   {
     public enum ContentType
     {
@@ -12,7 +13,7 @@ namespace CTR_LIB
       CertificateChain = -3, 
       Ticket = -2,
       TitleMetadata = -1,
-      Application = 0,
+      Contents = 0,
       Manual = 1,
       DownloadPlayChild = 2,
       Meta = -5
@@ -24,10 +25,9 @@ namespace CTR_LIB
     public CIASectionInfo CertificateChainInfo { get; private set; }
     public CIASectionInfo TicketInfo { get; private set; }
     public CIASectionInfo TitleMetadataInfo { get; private set; }
-    public CIASectionInfo ApplicationInfo { get; private set; }
-    public CIASectionInfo ManualInfo { get; private set; }
-    public CIASectionInfo DownloadPlayChildInfo { get; private set; }
+    public CIASectionInfo ContentInfo { get; private set; }
     public CIASectionInfo MetaInfo { get; private set; }
+    public List<ContentChunkRecord> ActiveContentsInfo { get; private set; }
     public TMD TitleMetadata { get; private set; }
     
     public CIA(string pathToCIA)
@@ -59,7 +59,7 @@ namespace CTR_LIB
         int offset = i * 8;
         byte current = contentIndex[i];
         
-        for (int j = 7; j > -1; j -= 1) 
+        for (int j = 7; j > -1; j += -1) 
         {
           if ((current & 1) == 1) 
           {
@@ -75,13 +75,35 @@ namespace CTR_LIB
       int tmdOffset = ticketOffset + Tools.RoundUp(ticketSize, AlignSize);
       int contentOffset = tmdOffset + Tools.RoundUp(tmdSize, AlignSize);
       int metaOffset = contentOffset + Tools.RoundUp(contentSize, AlignSize);
+      //titlkey loading go here
+      
+      List<int> ActiveContentsInTmd = new List<int>();
+      this.ActiveContentsInfo = new List<ContentChunkRecord>();
+      
+      TMD tmdData = TMDReader.Read(Tools.ReadBytes(pathToCIA, tmdOffset, tmdOffset + tmdSize), true);
+      this.TitleMetadata = tmdData;
+      
+      foreach (ContentChunkRecord ccr in tmdData.ContentChunkRecords)
+      {
+        if (ActiveContents.Contains(ccr.ContentIndex))
+        {
+          this.ActiveContentsInfo.Add(ccr);
+          ActiveContentsInTmd.Add(ccr.ContentIndex);
+        }
+      }
+      
+      ActiveContents.Sort();
+      
+      if (!Enumerable.SequenceEqual(ActiveContents, ActiveContentsInTmd))
+      {
+        throw new ArgumentException("Invalid CIA Detected, contents defined in TMD do not match the contents defined in CIA.");
+      }
       
       this.ArchiveHeaderInfo = new CIASectionInfo("Archive Header", (int)ContentType.ArchiveHeader, 0x0, header);
       this.CertificateChainInfo = new CIASectionInfo("Certificate Chain", (int)ContentType.CertificateChain, certChainOffset, certChainSize);
       this.TicketInfo = new CIASectionInfo("Ticket", (int)ContentType.Ticket, ticketOffset, ticketSize);
       this.TitleMetadataInfo = new CIASectionInfo("Title Metadata (TMD)", (int)ContentType.TitleMetadata, tmdOffset, tmdSize);
-      this.ApplicationInfo = new CIASectionInfo("Contents", (int)ContentType.Application, contentOffset, contentSize);
-      this.TitleMetadata = TMDReader.Read(Tools.ReadBytes(pathToCIA, tmdOffset, tmdOffset + tmdSize), true);
+      this.ContentInfo = new CIASectionInfo("Contents", (int)ContentType.Contents, contentOffset, contentSize);
       
       if (metaSize > 0)
       {

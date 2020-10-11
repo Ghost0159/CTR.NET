@@ -2,7 +2,7 @@ using System;
 
 namespace CTR_LIB
 {
-  class CIASectionInfo
+  public class CIASectionInfo
   {
     public string SectionName { get; private set; }
     public int ContentType { get; private set; }

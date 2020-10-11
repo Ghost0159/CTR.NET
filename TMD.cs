@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace CTR_LIB
 {
-  class TMD 
+  public class TMD 
   {
     public byte[] RawData { get; private set; }
     public string SignatureName { get; private set; }
@@ -85,7 +85,6 @@ namespace CTR_LIB
       }
       
       result += $"\nIssuer: {this.Issuer}\nUnused Version: {this.UnusedVersion.Hex()}\nCA CRL Version: {this.CaCrlVersion.Hex()}\nReserved (1): {this.Reserved1.Hex()}\nSystem Version: {this.SystemVersion.Hex()}\nGroup ID: {this.GroupId.Hex()}\nReserved (2): {this.Reserved2.Hex()}\nSRL Flag: {this.SrlFlag.Hex()}\nReserved (3): {this.Reserved3.Hex()}\nAccess Rights: {this.AccessRights.Hex()}\nBoot Count: {this.BootCount.Hex()}\nUnused Padding: {this.UnusedPadding.Hex()}";
-      
       return result;
     }
   }
