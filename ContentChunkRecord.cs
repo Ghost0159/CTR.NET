@@ -29,7 +29,7 @@ namespace CTR.NET
             $"Hash: {this.Hash.Hex()}\n" +
             $"--------------------------------";
 
-        public byte[] ToByteArray() 
+        public byte[] ToByteArray()
         {
             return Tools.HexToBytes(this.ID)
                     .Combine(Tools.HexToBytes(this.ContentIndex.ToString("X4")))

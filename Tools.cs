@@ -106,7 +106,7 @@ namespace CTR.NET
 
             return bytes;
         }
-        
+
         public static void ExtractFromFile(FileStream input, FileStream output, long offset, long size, int bufferSize = 20000000)
         {
             using (input)
@@ -127,7 +127,6 @@ namespace CTR.NET
                 output.Close();
             }
         }
-        
     }
 
     public static class ExtensionMethods
@@ -136,14 +135,9 @@ namespace CTR.NET
 
         public static int IntBE(this byte[] data, int startIndex = 0)
         {
-            if (data.Length < 4)
-            {
-                return (data[0] << 8) | data[1];
-            }
-            else
-            {
-                return (data[startIndex] << 24) | (data[startIndex + 1] << 16) | (data[startIndex + 2] << 8) | data[startIndex + 3];
-            }
+            return data.Length < 4
+                ? (data[0] << 8) | data[1]
+                : (data[startIndex] << 24) | (data[startIndex + 1] << 16) | (data[startIndex + 2] << 8) | data[startIndex + 3];
         }
 
         public static string Hex(this byte[] bytes)
