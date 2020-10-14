@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace CTR_LIB
+namespace CTR.NET
 {
     public class TMD
     {

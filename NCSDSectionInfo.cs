@@ -1,4 +1,4 @@
-namespace CTR_LIB
+namespace CTR.NET
 {
     public class NCSDSectionInfo
     {

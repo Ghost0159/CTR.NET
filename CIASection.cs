@@ -1,6 +1,6 @@
 using System;
 
-namespace CTR_LIB
+namespace CTR.NET
 {
     public class CIASectionInfo
     {
@@ -12,16 +12,16 @@ namespace CTR_LIB
 
         public CIASectionInfo(string sectionName, int contentType, int offset, int size, byte[] initializationVector = null)
         {
-            this.SectionName = sectionName;
-            this.ContentType = contentType;
-            this.Offset = offset;
-            this.Size = size;
-            this.InitializationVector = initializationVector;
+            SectionName = sectionName;
+            ContentType = contentType;
+            Offset = offset;
+            Size = size;
+            InitializationVector = initializationVector;
         }
 
         public override string ToString()
         {
-            return $"SECTION {this.SectionName.ToUpper()}:\n\nOffset: 0x{Convert.ToString(this.Offset, 16).ToUpper()}-0x{Convert.ToString(this.Offset + this.Size, 16).ToUpper()}\nSize: {this.Size} (0x{Convert.ToString(this.Size, 16).ToUpper()}) bytes";
+            return $"SECTION {SectionName.ToUpper()}:\n\nOffset: 0x{Convert.ToString(Offset, 16).ToUpper()}-0x{Convert.ToString(Offset + Size, 16).ToUpper()}\nSize: {Size} (0x{Convert.ToString(Size, 16).ToUpper()}) bytes";
         }
     }
 }

@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 
-namespace CTR_LIB
+namespace CTR.NET
 {
     public static class TMDReader
     {

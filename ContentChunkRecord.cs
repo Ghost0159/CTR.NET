@@ -1,6 +1,6 @@
 using System;
 
-namespace CTR_LIB
+namespace CTR.NET
 {
     public class ContentChunkRecord
     {

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
-namespace CTR_LIB
+namespace CTR.NET
 {
     public class CIA
     {

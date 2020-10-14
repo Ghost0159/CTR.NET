@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Security.Cryptography;
 
-namespace CTR_LIB
+namespace CTR.NET
 {
   static class Tools
   {

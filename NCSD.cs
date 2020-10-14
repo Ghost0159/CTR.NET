@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 
-namespace CTR_LIB
+namespace CTR.NET
 {
     public class NCSD
     {
