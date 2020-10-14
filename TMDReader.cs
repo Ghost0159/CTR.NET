@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 
@@ -98,11 +99,12 @@ namespace CTR.NET
             for (int i = 0; i < contentCount * ChunkRecordSize; i += ChunkRecordSize)
             {
                 byte[] contentChunk = contentChunkRecordsRaw.Copy(i, i + ChunkRecordSize);
+                Console.WriteLine(contentChunk.Copy(0x8, 0x10).Hex());
                 chunkRecords.Add(new ContentChunkRecord(
                   contentChunk.Copy(0x0, 0x4).Hex(),
                   contentChunk.Copy(0x4, 0x6).IntBE(),
                   ContentTypeFlags.GetFlags(contentChunk.Copy(0x6, 0x8).IntBE()),
-                  Convert.ToInt32(contentChunk.Copy(0x8, 0x10).Hex(), 16),
+                  Int64.Parse(contentChunk.Copy(0x8, 0x10).Hex(), System.Globalization.NumberStyles.HexNumber),
                   contentChunk.Copy(0x10, 0x30)
                 ));
             }

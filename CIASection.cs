@@ -6,11 +6,11 @@ namespace CTR.NET
     {
         public string SectionName { get; private set; }
         public int ContentType { get; private set; }
-        public int Offset { get; private set; }
-        public int Size { get; private set; }
+        public long Offset { get; private set; }
+        public long Size { get; private set; }
         public byte[] InitializationVector { get; private set; }
 
-        public CIASectionInfo(string sectionName, int contentType, int offset, int size, byte[] initializationVector = null)
+        public CIASectionInfo(string sectionName, int contentType, long offset, long size, byte[] initializationVector = null)
         {
             SectionName = sectionName;
             ContentType = contentType;

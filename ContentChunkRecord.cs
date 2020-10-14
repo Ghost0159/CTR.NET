@@ -29,12 +29,12 @@ namespace CTR.NET
             $"Hash: {this.Hash.Hex()}\n" +
             $"--------------------------------";
 
-        public byte[] ToByteArray()
+        public byte[] ToByteArray() 
         {
             return Tools.HexToBytes(this.ID)
                     .Combine(Tools.HexToBytes(this.ContentIndex.ToString("X4")))
                     .Combine(Tools.HexToBytes(this.Type.AsInt().ToString("X4")))
-                    .Combine(Tools.HexToBytes(this.Size.ToString("X16")))
+                    .Combine(Tools.HexToBytes(((int)this.Size).ToString("X16")))
                     .Combine(this.Hash);
         }
     }

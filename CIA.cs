@@ -28,7 +28,9 @@ namespace CTR.NET
         public CIASectionInfo ContentInfo { get; private set; }
         public CIASectionInfo MetaInfo { get; private set; }
         public List<ContentChunkRecord> ActiveContentsInfo { get; private set; }
+        public List<CIASectionInfo> Contents { get; private set; }
         public TMD TitleMetadata { get; private set; }
+        private string FilePath { get; set; }
 
         public CIA(string pathToCIA)
         {
@@ -108,6 +110,37 @@ namespace CTR.NET
             if (metaSize > 0)
             {
                 this.MetaInfo = new CIASectionInfo("Meta", (int)ContentType.Meta, metaOffset, metaSize);
+            }
+
+            this.FilePath = pathToCIA;
+            this.Contents = new List<CIASectionInfo>();
+
+            long ncchOffset = this.ContentInfo.Offset;
+
+            foreach (ContentChunkRecord ccr in this.ActiveContentsInfo)
+            {
+                this.Contents.Add(new CIASectionInfo($"{ccr.ContentIndex:X4}.{ccr.ID}", (int)ContentType.Contents, ncchOffset, ccr.Size));
+                ncchOffset += ccr.Size;
+            }
+        }
+
+        public void ExtractContent(string ncchIndex, FileStream outputFile)
+        {
+            if (!this.ActiveContentsInfo.Any(ac => $"{ac.ContentIndex:X4}.{ac.ID}" != ncchIndex))
+            {
+                throw new ArgumentException($"Specified NCCH Index {ncchIndex} does not exist in the current CIA.");
+            }
+
+            CIASectionInfo selectedContent = this.Contents.Find(c => c.SectionName == ncchIndex);
+
+            Tools.ExtractFromFile(new FileStream(this.FilePath, FileMode.Open, FileAccess.Read), outputFile, selectedContent.Offset, selectedContent.Offset + selectedContent.Size);
+        }
+
+        public void ExtractAllContents(DirectoryInfo outputDirectory)
+        {
+            foreach (CIASectionInfo content in this.Contents)
+            {
+                Tools.ExtractFromFile(new FileStream(this.FilePath, FileMode.Open, FileAccess.Read), File.Create($"{outputDirectory.FullName}/{content.SectionName}.ncch"), content.Offset, content.Offset + content.Size);
             }
         }
     }
