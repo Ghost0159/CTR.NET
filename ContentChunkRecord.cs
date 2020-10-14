@@ -23,9 +23,9 @@ namespace CTR.NET
             $"--------------------------------\n" +
             $"CONTENT CHUNK RECORD INFO FOR INDEX {this.ContentIndex:X4}.{this.ID}:\n\n" +
             $"ID: {this.ID}\n" +
-            $"Content Index: {this.ContentIndex} ({this.ContentIndex:X4)})\n\n" +
+            $"Content Index: {this.ContentIndex} ({this.ContentIndex:X4})\n\n" +
             $"{this.Type}\n\n" +
-            $"Content Size: {this.Size} (0x{Convert.ToString(this.Size, 16)}) bytes\n" +
+            $"Content Size: {this.Size} (0x{Convert.ToString(this.Size, 16).ToUpper()}) bytes\n" +
             $"Hash: {this.Hash.Hex()}\n" +
             $"--------------------------------";
 

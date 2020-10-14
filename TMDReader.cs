@@ -67,7 +67,7 @@ namespace CTR.NET
 
             if (header.Length != 0xC4)
             {
-                throw new ArgumentException($"TMD Header size is wrong, expected 0xC4 but got {header.Length:X4)}");
+                throw new ArgumentException($"TMD Header size is wrong, expected 0xC4 but got {header.Length:X4}");
             }
 
             byte[] titleId = header.Copy(0x4C, 0x54);
@@ -174,7 +174,7 @@ namespace CTR.NET
             byte[] bootCount = header.Copy(0xA0, 0xA2);
             byte[] unusedPadding = header.Copy(0xA2, 0xA4);
 
-            return new TMD(tmdData, sigName, sigSize, sigPadding, signature, header, titleId, saveSize, srlSaveSize, version, versionstring, contentCount, contentInfoRecordsRaw, contentInfoRecordsHash, contentChunkRecordsRaw, chunkRecords, infoRecords, issuer, versionUnused, caCrlVersion, reserved1, systemVersion, titleType, groupId, reserved2, srlFlag, reserved3, accessRights, bootCount, unusedPadding);
+            return new TMD(tmdData, sigName, sigSize, sigPadding, signature, header, titleId, saveSize, srlSaveSize, version, versionstring, contentCount, contentInfoRecordsRaw, contentInfoRecordsHash, contentChunkRecordsRaw, chunkRecords, infoRecords, issuer, versionUnused, caCrlVersion, signerCrlVersion, reserved1, systemVersion, titleType, groupId, reserved2, srlFlag, reserved3, accessRights, bootCount, unusedPadding);
         }
     }
 }

@@ -25,6 +25,7 @@ namespace CTR.NET
         public string Issuer { get; private set; }
         public byte[] UnusedVersion { get; private set; }
         public byte[] CaCrlVersion { get; private set; }
+        public byte[] SignerCrlVersion { get; private set; }
         public byte[] Reserved1 { get; private set; }
         public byte[] SystemVersion { get; private set; }
         public byte[] TitleType { get; private set; }
@@ -36,7 +37,7 @@ namespace CTR.NET
         public byte[] BootCount { get; private set; }
         public byte[] UnusedPadding { get; private set; }
 
-        public TMD(byte[] rawData, string signatureName, int signatureSize, int signaturePadding, byte[] signatureData, byte[] header, byte[] titleId, int saveDataSize, int srlSaveDataSize, int rawTitleVersion, string titleVersion, int contentCount, byte[] rawContentInfoRecords, byte[] contentInfoRecordsHash, byte[] rawContentChunkRecords, List<ContentChunkRecord> contentChunkRecords, List<ContentInfoRecord> contentInfoRecords, string issuer, byte[] unusedVersion, byte[] caCrlVersion, byte[] reserved1, byte[] systemVersion, byte[] titleType, byte[] groupId, byte[] reserved2, byte[] srlFlag, byte[] reserved3, byte[] accessRights, byte[] bootCount, byte[] unusedPadding)
+        public TMD(byte[] rawData, string signatureName, int signatureSize, int signaturePadding, byte[] signatureData, byte[] header, byte[] titleId, int saveDataSize, int srlSaveDataSize, int rawTitleVersion, string titleVersion, int contentCount, byte[] rawContentInfoRecords, byte[] contentInfoRecordsHash, byte[] rawContentChunkRecords, List<ContentChunkRecord> contentChunkRecords, List<ContentInfoRecord> contentInfoRecords, string issuer, byte[] unusedVersion, byte[] caCrlVersion, byte[] signerCrlVersion, byte[] reserved1, byte[] systemVersion, byte[] titleType, byte[] groupId, byte[] reserved2, byte[] srlFlag, byte[] reserved3, byte[] accessRights, byte[] bootCount, byte[] unusedPadding)
         {
             this.RawData = rawData;
             this.SignatureName = signatureName;
@@ -58,6 +59,7 @@ namespace CTR.NET
             this.Issuer = issuer;
             this.UnusedVersion = unusedVersion;
             this.CaCrlVersion = caCrlVersion;
+            this.SignerCrlVersion = signerCrlVersion;
             this.Reserved1 = reserved1;
             this.SystemVersion = systemVersion;
             this.TitleType = titleType;
@@ -85,6 +87,7 @@ namespace CTR.NET
                 $"Issuer: { this.Issuer}\n" +
                 $"Unused Version: { this.UnusedVersion.Hex()}\n" +
                 $"CA CRL Version: { this.CaCrlVersion.Hex()}\n" +
+                $"Signer CRL Version: {this.SignerCrlVersion.Hex()}\n" +
                 $"Reserved(1): { this.Reserved1.Hex()}\n" +
                 $"System Version: { this.SystemVersion.Hex()}\n" +
                 $"Group ID: { this.GroupId.Hex()}\n" +
