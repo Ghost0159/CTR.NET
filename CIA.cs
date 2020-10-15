@@ -46,11 +46,11 @@ namespace CTR.NET
                 throw new ArgumentException($"File (pathToCIA) is not a CIA, because the header is not 0x2020 (8224).");
             }
 
-            int certChainSize = Tools.ReadBytes(pathToCIA, 0x8, 0xC).IntLE();
-            int ticketSize = Tools.ReadBytes(pathToCIA, 0xC, 0x10).IntLE();
-            int tmdSize = Tools.ReadBytes(pathToCIA, 0x10, 0x14).IntLE();
-            int metaSize = Tools.ReadBytes(pathToCIA, 0x14, 0x18).IntLE();
-            int contentSize = Tools.ReadBytes(pathToCIA, 0x18, 0x20).IntLE();
+            int certChainSize = BitConverter.ToInt32(Tools.ReadBytes(pathToCIA, 0x8, 0xC));
+            int ticketSize = BitConverter.ToInt32(Tools.ReadBytes(pathToCIA, 0xC, 0x10));
+            int tmdSize = BitConverter.ToInt32(Tools.ReadBytes(pathToCIA, 0x10, 0x14));
+            int metaSize = BitConverter.ToInt32(Tools.ReadBytes(pathToCIA, 0x14, 0x18));
+            long contentSize = BitConverter.ToInt64(Tools.ReadBytes(pathToCIA, 0x18, 0x20), 0);
 
             byte[] contentIndex = Tools.ReadBytes(pathToCIA, 0x20, 0x2020);
 
@@ -75,8 +75,8 @@ namespace CTR.NET
             int certChainOffset = Tools.RoundUp(header, AlignSize);
             int ticketOffset = certChainOffset + Tools.RoundUp(certChainSize, AlignSize);
             int tmdOffset = ticketOffset + Tools.RoundUp(ticketSize, AlignSize);
-            int contentOffset = tmdOffset + Tools.RoundUp(tmdSize, AlignSize);
-            int metaOffset = contentOffset + Tools.RoundUp(contentSize, AlignSize);
+            long contentOffset = tmdOffset + Tools.RoundUp(tmdSize, AlignSize);
+            long metaOffset = contentOffset + Tools.RoundUp(contentSize, AlignSize);
             //titlkey loading go here
 
             List<int> ActiveContentsInTmd = new List<int>();
@@ -133,14 +133,14 @@ namespace CTR.NET
 
             CIASectionInfo selectedContent = this.Contents.Find(c => c.SectionName == ncchIndex);
 
-            Tools.ExtractFromFile(new FileStream(this.FilePath, FileMode.Open, FileAccess.Read), outputFile, selectedContent.Offset, selectedContent.Offset + selectedContent.Size);
+            Tools.ExtractFromFile(new FileStream(this.FilePath, FileMode.Open, FileAccess.Read), outputFile, selectedContent.Offset, selectedContent.Size);
         }
 
         public void ExtractAllContents(DirectoryInfo outputDirectory)
         {
             foreach (CIASectionInfo content in this.Contents)
             {
-                Tools.ExtractFromFile(new FileStream(this.FilePath, FileMode.Open, FileAccess.Read), File.Create($"{outputDirectory.FullName}/{content.SectionName}.ncch"), content.Offset, content.Offset + content.Size);
+                Tools.ExtractFromFile(new FileStream(this.FilePath, FileMode.Open, FileAccess.Read), File.Create($"{outputDirectory.FullName}/{content.SectionName}.ncch"), content.Offset, content.Size);
             }
         }
     }

@@ -21,7 +21,8 @@ namespace CTR.NET
 
         public override string ToString()
         {
-            return $"SECTION {SectionName.ToUpper()}:\n\nOffset: 0x{Convert.ToString(Offset, 16).ToUpper()}-0x{Convert.ToString(Offset + Size, 16).ToUpper()}\nSize: {Size} (0x{Convert.ToString(Size, 16).ToUpper()}) bytes";
+            Console.WriteLine(Size);
+            return $"SECTION {SectionName.ToUpper()}:\n\nOffset: 0x{Offset.ToString("X").ToUpper()}-0x{(Offset + Size).ToString("X").ToUpper()}\nSize: {Size} (0x{Size.ToString("X").ToUpper()}) bytes";
         }
     }
 }

@@ -98,7 +98,7 @@ namespace CTR.NET
             for (int i = 0; i < contentCount * ChunkRecordSize; i += ChunkRecordSize)
             {
                 byte[] contentChunk = contentChunkRecordsRaw.Copy(i, i + ChunkRecordSize);
-                Console.WriteLine(contentChunk.Copy(0x8, 0x10).Hex());
+
                 chunkRecords.Add(new ContentChunkRecord(
                   contentChunk.Copy(0x0, 0x4).Hex(),
                   contentChunk.Copy(0x4, 0x6).IntBE(),

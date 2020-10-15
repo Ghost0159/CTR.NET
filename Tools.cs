@@ -7,7 +7,7 @@ using System.Text;
 
 namespace CTR.NET
 {
-    internal static class Tools
+    public static class Tools
     {
         public static string BytesToString(byte[] bytes, bool isUnicode)
         {
@@ -54,6 +54,11 @@ namespace CTR.NET
         }
 
         public static int RoundUp(int offset, int alignment)
+        {
+            return (int)Math.Ceiling((double)offset / alignment) * alignment;
+        }
+
+        public static int RoundUp(long offset, int alignment)
         {
             return (int)Math.Ceiling((double)offset / alignment) * alignment;
         }
@@ -107,7 +112,7 @@ namespace CTR.NET
             return bytes;
         }
 
-        public static void ExtractFromFile(FileStream input, FileStream output, long offset, long size, int bufferSize = 20000000)
+        public static void ExtractFromFile(Stream input, FileStream output, long offset, long size, int bufferSize = 20000000)
         {
             using (input)
             {
@@ -115,9 +120,9 @@ namespace CTR.NET
 
                 byte[] buffer = new byte[bufferSize];
 
-                while (input.Position < size)
+                while (input.Position < offset + size)
                 {
-                    int remaining = 15000000, bytesRead;
+                    int remaining = bufferSize, bytesRead;
                     while (remaining > 0 && (bytesRead = input.Read(buffer, 0, Math.Min(remaining, bufferSize))) > 0)
                     {
                         remaining -= bytesRead;
@@ -125,6 +130,32 @@ namespace CTR.NET
                     }
                 }
                 output.Close();
+            }
+        }
+
+        public static byte[] HashSHA256Region(Stream input, long offset, long size, int bufferSize = 20000000)
+        {
+            using (input)
+            {
+                using (var sha256 = SHA256.Create())
+                {
+                    input.Seek(offset, 0);
+
+                    byte[] buffer = new byte[bufferSize];
+
+                    while (input.Position < offset + size)
+                    {
+                        int remaining = bufferSize, bytesRead;
+                        while (remaining > 0 && (bytesRead = input.Read(buffer, 0, Math.Min(remaining, bufferSize))) > 0)
+                        {
+                            remaining -= bytesRead;
+                            sha256.TransformBlock(buffer, 0, bytesRead, buffer, 0);
+                        }
+                    }
+
+                    sha256.TransformFinalBlock(buffer, 0, 0);
+                    return sha256.Hash;
+                }
             }
         }
     }
@@ -135,9 +166,14 @@ namespace CTR.NET
 
         public static int IntBE(this byte[] data, int startIndex = 0)
         {
-            return data.Length < 4
-                ? (data[0] << 8) | data[1]
-                : (data[startIndex] << 24) | (data[startIndex + 1] << 16) | (data[startIndex + 2] << 8) | data[startIndex + 3];
+            if (data.Length < 4)
+            {
+                return (data[0] << 8) | data[1];
+            }
+            else
+            {
+                return (data[startIndex] << 24) | (data[startIndex + 1] << 16) | (data[startIndex + 2] << 8) | data[startIndex + 3];
+            }
         }
 
         public static string Hex(this byte[] bytes)
