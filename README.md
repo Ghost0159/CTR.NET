@@ -1,6 +1,10 @@
 # CTR.NET
 CTR (Nintendo 3DS) Library in C#, ported from pyctr
 
-A very incomplete and bad attempt at trying to port pyctr into C#.
+A "port" of pyctr in C#
 
-expect bad code, errors, and everything else.
+My coding isn't the best, but "if it works, it works".
+
+This came to be because I very much dislike python (no hate towards ihaveamac).
+
+I will try to expand this library to support the most 3DS types, but I can't do everything as I'm not good enough of a dev
