@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace CTR.NET
@@ -48,6 +49,11 @@ namespace CTR.NET
 
         public SMDHInfo()
         {
+            this.Magic = "N/A";
+            this.Version = "N/A";
+            this.VersionNumber = -1;
+            this.TitleNames = new List<SMDHTitleNameStructure>() { new SMDHTitleNameStructure() };
+            this.ApplicationSettings = new SMDHApplicationSettings();
         }
 
         public override string ToString()
@@ -69,10 +75,10 @@ namespace CTR.NET
 
     public class SMDHTitleNameStructure
     {
-        public string LongTitle { get; private set; }
-        public string ShortTitle { get; private set; }
-        public string Publisher { get; private set; }
-        public string Language { get; private set; }
+        public string LongTitle { get; set; }
+        public string ShortTitle { get; set; }
+        public string Publisher { get; set; }
+        public string Language { get; set; }
 
         public SMDHTitleNameStructure(byte[] titleNameStructureRaw, string language)
         {
@@ -80,6 +86,14 @@ namespace CTR.NET
             this.ShortTitle = titleNameStructureRaw.TakeBytes(0x80, 0x180).Decode(Encoding.Unicode);
             this.Publisher = titleNameStructureRaw.TakeBytes(0x180, 0x200).Decode(Encoding.Unicode);
             this.Language = language;
+        }
+
+        public SMDHTitleNameStructure()
+        {
+            this.Language = "N/A";
+            this.LongTitle = "N/A";
+            this.Publisher = "N/A";
+            this.ShortTitle = "N/A";
         }
 
         public override string ToString() => $"-------------------------------\n\nSMDH Title Name Structure:\n\nLanguage: {this.Language}\n\nLong Title: {this.LongTitle}\n\nShort Title: {this.ShortTitle}\n\nPublisher: {this.Publisher}";
@@ -153,6 +167,19 @@ namespace CTR.NET
             this.CEC_StreePassID = applicationSettings.TakeBytes(44, 48).IntLE().ToString();
         }
 
+        public SMDHApplicationSettings ()
+        {
+            this.GameRatings = new List<GameRating>() { new GameRating() };
+            this.RegionLockout = "N/A";
+            this.MatchmakerID = "N/A";
+            this.MatchmakerBitID = "N/A";
+            this.Flags = new SMDHFlags();
+            this.EulaVersion = "N/A";
+            this.EulaVersionNumber = -1;
+            this.OptionalAnimationDefaultFrame = "N/A";
+            this.CEC_StreePassID = "N/A";
+        }
+
         public override string ToString()
         {
             string output = "Age Ratings:\n\n";
@@ -192,6 +219,14 @@ namespace CTR.NET
             }
         }
 
+        public GameRating()
+        {
+            this.RawData = -1;
+            this.Description = "N/A";
+            this.AgeRating = -1;
+            this.isEnabled = false;
+        }
+
         public override string ToString()
         {
             if (this.isEnabled)
@@ -216,6 +251,21 @@ namespace CTR.NET
         public bool ApplicatonDataIsRecorded { get; set; } = false;
         public bool SDSaveDataBackupsDisabled { get; set; } = false;
         public bool IsNew3DSExclusive { get; set; } = false;
+
+        public SMDHFlags ()
+        {
+            this.IsVisible = false;
+            this.AutoBoot = false;
+            this.Uses3D = false;
+            this.RequiresAcceptanceOfEULA = false;
+            this.AutoSaveOnExit = false;
+            this.UsesExtendedBanner = false;
+            this.RegionGameRatingRequired = false;
+            this.UsesSaveData = false;
+            this.ApplicatonDataIsRecorded = false;
+            this.SDSaveDataBackupsDisabled = false;
+            this.IsNew3DSExclusive = false;
+        }
 
         public SMDHFlags(int flags)
         {

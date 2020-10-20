@@ -34,7 +34,7 @@ namespace CTR.NET
         public string ExeFSSuperBlockHash { get; private set; } //hex
         public string RomFSSuperBlockHash { get; private set; } //hex
 
-        public NCCHInfo(FileStream ncch)
+        public NCCHInfo(Stream ncch)
         {
             byte[] ncchHeader = ncch.ReadBytes(512);
 
@@ -60,14 +60,14 @@ namespace CTR.NET
                 this.PlainRegion = ncch.ReadBytes(this.PlainRegionSize).Decode(Encoding.UTF8).Replace("\0", "\n").Trim();
             }
 
-            this.LogoRegionOffset = long.Parse(ncchHeader.TakeBytes(0x198, 0x19C).Hex(), NumberStyles.HexNumber) * 0x200;
-            this.LogoRegionSize = long.Parse(ncchHeader.TakeBytes(0x19C, 0x1A0).Hex(), NumberStyles.HexNumber) * 0x200;
-            this.ExeFSOffset = long.Parse(ncchHeader.TakeBytes(0x1A0, 0x1A4).Hex(), NumberStyles.HexNumber) * 0x200;
-            this.ExeFSSize = long.Parse(ncchHeader.TakeBytes(0x1A4, 0x1A8).Hex(), NumberStyles.HexNumber) * 0x200;
-            this.ExeFSHashRegionSize = long.Parse(ncchHeader.TakeBytes(0x1A8, 0x1AC).Hex(), NumberStyles.HexNumber) * 0x200;
-            this.RomFSOffset = long.Parse(ncchHeader.TakeBytes(0x1B0, 0x1B4).Hex(), NumberStyles.HexNumber) * 0x200;
-            this.RomFSSize = long.Parse(ncchHeader.TakeBytes(0x1B4, 0x1B8).Hex(), NumberStyles.HexNumber) * 0x200;
-            this.RomFSHashRegionSize = long.Parse(ncchHeader.TakeBytes(0x1B8, 0x1BC).Hex(), NumberStyles.HexNumber) * 0x200;
+            this.LogoRegionOffset = ncchHeader.TakeBytes(0x198, 0x19C).IntLE() * 0x200;
+            this.LogoRegionSize = ncchHeader.TakeBytes(0x19C, 0x1A0).IntLE() * 0x200;
+            this.ExeFSOffset = ncchHeader.TakeBytes(0x1A0, 0x1A4).IntLE() * 0x200;
+            this.ExeFSSize = ncchHeader.TakeBytes(0x1A4, 0x1A8).IntLE() * 0x200;
+            this.ExeFSHashRegionSize = ncchHeader.TakeBytes(0x1A8, 0x1AC).IntLE() * 0x200;
+            this.RomFSOffset = ncchHeader.TakeBytes(0x1B0, 0x1B4).IntLE() * 0x200;
+            this.RomFSSize = ncchHeader.TakeBytes(0x1B4, 0x1B8).IntLE() * 0x200;
+            this.RomFSHashRegionSize = ncchHeader.TakeBytes(0x1B8, 0x1BC).IntLE() * 0x200;
             this.ExeFSSuperBlockHash = ncchHeader.TakeBytes(0x1C0, 0x1E0).Hex();
             this.RomFSSuperBlockHash = ncchHeader.TakeBytes(0x1E0, 0x200).Hex();
         }
@@ -142,18 +142,18 @@ namespace CTR.NET
                 this.Region = productCode.Split("-")[2][3] switch
                 {
                     'P' => "Europe (E)",
-                    'Z' => "Europe (Z) / (E)",
-                    'X' => "Europe (X) / (E)",
-                    'V' => "Europe (V) / (E)",
-                    'Y' => "Europe (Y) / (E)",
-                    'D' => "Europe (D) / (E)",
-                    'S' => "Europe (S) / (E)",
-                    'F' => "Europe (F) / (E)",
-                    'E' => "North America (U)",
+                    'Z' => "Europe (Z)",
+                    'X' => "Europe (X)",
+                    'V' => "Europe (V)",
+                    'Y' => "Europe (Y)",
+                    'D' => "Europe (D)",
+                    'S' => "Europe (S)",
+                    'F' => "Europe (F)",
+                    'E' => "USA (U)",
                     'J' => "Japan (J)",
                     'K' => "Korea (K)",
                     'W' => "China (CN)",
-                    'A' => "Global (Region Free) (W)",
+                    'A' => "RegionFree (A)",
                     _ => $"Unknown to CIAInfo, \"{productCode.Split("-")[2][3]}\"",
                 };
             }
