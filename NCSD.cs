@@ -5,7 +5,7 @@ using System.Linq;
 
 namespace CTR.NET
 {
-    public class NCSD
+    public class NCSDInfo
     {
         public enum NCSDSection
         {
@@ -41,7 +41,7 @@ namespace CTR.NET
         public List<NCSDSectionInfo> Sections { get; private set; }
         public string MediaId { get; private set; }
 
-        public NCSD(long imageSize, List<NCSDSectionInfo> sections, string mediaId, string path)
+        public NCSDInfo(long imageSize, List<NCSDSectionInfo> sections, string mediaId, string path)
         {
             this.ImageSize = imageSize;
             this.Sections = sections;
@@ -49,24 +49,24 @@ namespace CTR.NET
             this.FilePath = path;
         }
 
-        public static NCSD Read(string pathToNCSD, bool dev = false)
+        public static NCSDInfo Read(string pathToNCSD, bool dev = false)
         {
             byte[] header;
 
             using (FileStream NCSDFileStream = File.OpenRead(pathToNCSD))
             {
                 NCSDFileStream.Seek(0x100, SeekOrigin.Begin);
-                header = Tools.ReadFromStream(NCSDFileStream, 0x100);
+                header = NCSDFileStream.ReadBytes(0x100);
             }
 
-            Console.WriteLine(header.Copy(0x0, 0x4).Hex());
+            Console.WriteLine(header.TakeBytes(0x0, 0x4).Hex());
 
-            if (header.Copy(0x0, 0x4).Hex() != "4E435344") //if header at 0x0-0x4 doesn't have 'NCSD'
+            if (header.TakeBytes(0x0, 0x4).Hex() != "4E435344") //if header at 0x0-0x4 doesn't have 'NCSD'
             {
                 throw new ArgumentException("NCSD magic not found in header of specified file.");
             }
 
-            byte[] mediaIdBytes = header.Copy(0x8, 0x10);
+            byte[] mediaIdBytes = header.TakeBytes(0x8, 0x10);
             Array.Reverse(mediaIdBytes);
             string mediaId = mediaIdBytes.Hex();
 
@@ -75,19 +75,19 @@ namespace CTR.NET
                 throw new ArgumentException("Specified file is a NAND, and not an NCSD Image.");
             }
 
-            long imageSize = (long)header.Copy(0x4, 0x8).IntLE() * (long)NCSDMediaUnit;
+            long imageSize = (long)header.TakeBytes(0x4, 0x8).IntLE() * (long)NCSDMediaUnit;
 
             List<NCSDSectionInfo> sections = new List<NCSDSectionInfo>();
 
-            byte[] partRaw = header.Copy(0x20, 0x60);
+            byte[] partRaw = header.TakeBytes(0x20, 0x60);
 
             int[] range = new int[] { 0, 8, 16, 24, 32, 40, 48, 56 };
 
             for (int i = 0; i < range.Length; i++)
             {
-                byte[] partInfo = partRaw.Copy(range[i], range[i] + 8);
-                long partOffset = (long)partInfo.Copy(0x0, 0x4).IntLE() * (long)NCSDMediaUnit;
-                long partSize = (long)partInfo.Copy(0x4, 0x8).IntLE() * (long)NCSDMediaUnit;
+                byte[] partInfo = partRaw.TakeBytes(range[i], range[i] + 8);
+                long partOffset = (long)partInfo.TakeBytes(0x0, 0x4).IntLE() * (long)NCSDMediaUnit;
+                long partSize = (long)partInfo.TakeBytes(0x4, 0x8).IntLE() * (long)NCSDMediaUnit;
 
                 if (partOffset > 0)
                 {
@@ -96,7 +96,7 @@ namespace CTR.NET
                 }
             }
 
-            return new NCSD(imageSize, sections, mediaId, pathToNCSD);
+            return new NCSDInfo(imageSize, sections, mediaId, pathToNCSD);
         }
 
         public void ExtractSection(FileStream outputFile, int id)
@@ -132,6 +132,29 @@ namespace CTR.NET
             }
 
             return output;
+        }
+    }
+
+    public class NCSDSectionInfo
+    {
+        public int Section { get; private set; }
+        public long Offset { get; private set; }
+        public long Size { get; private set; }
+
+        public NCSDSectionInfo(int section, long offset, long size)
+        {
+            this.Section = section;
+            this.Offset = offset;
+            this.Size = size;
+        }
+
+        public override string ToString()
+        {
+            return
+                $"NCSD SECTION \n" +
+                $"ID: {this.Section}\n" +
+                $"Offset: 0x{this.Offset:X}\n" +
+                $"Size: {this.Size} (0x{this.Size:X}) bytes";
         }
     }
 }

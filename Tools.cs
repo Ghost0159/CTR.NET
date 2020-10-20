@@ -9,26 +9,18 @@ namespace CTR.NET
 {
     public static class Tools
     {
-        public static string BytesToString(byte[] bytes, bool isUnicode)
+        public static string GetVersion(byte[] versionBytes, out int versionInt)
         {
-            string result = "";
+            if (versionBytes.Length != 2)
+            {
+                throw new ArgumentException("Input byte array was not 2 bytes long.");
+            }
 
-            if (isUnicode)
-            {
-                for (int i = 0; i < bytes.Length - 1; i += 2)
-                {
-                    if (bytes[i] == 0 && bytes[i + 1] == 0)
-                    {
-                        break;
-                    }
-                    result += BitConverter.ToChar(bytes, i);
-                }
-                return result;
-            }
-            else
-            {
-                return Encoding.Default.GetString(bytes);
-            }
+            Array.Reverse(versionBytes);
+
+            versionInt = ((versionBytes[1] & 0xff) << 8) + (versionBytes[0] & 0xff);
+
+            return $"{(versionInt >> 10) & 0x3F}.{(versionInt >> 4) & 0x3F}.{versionInt & 0xF}";
         }
 
         public static byte[] ReadBytes(string pathToFile, int startOffset, int endOffset)
@@ -63,35 +55,14 @@ namespace CTR.NET
             return (int)Math.Ceiling((double)offset / alignment) * alignment;
         }
 
-        public static byte[] ReadFromStream(Stream s, int length)
-        {
-            List<byte> output = new List<byte>();
-            int alength = (int)s.Position + length;
+        
 
-            for (int i = (int)s.Position; i < alength; i++)
-            {
-                output.Add((byte)s.ReadByte());
-            }
-
-            return output.ToArray();
-        }
-
-        public static byte[] ReadFromStream(Stream s, long length)
-        {
-            List<byte> output = new List<byte>();
-            long alength = s.Position + length;
-
-            for (long i = s.Position; i < alength; i++)
-            {
-                output.Add((byte)s.ReadByte());
-            }
-
-            return output.ToArray();
-        }
+        
 
         public static byte[] HashSHA256(byte[] inputData)
         {
             byte[] hash = Array.Empty<byte>();
+
             using (var sha256 = SHA256.Create())
             {
                 hash = sha256.ComputeHash(inputData);
@@ -176,9 +147,47 @@ namespace CTR.NET
             }
         }
 
-        public static string Hex(this byte[] bytes)
+        public static byte[] ReadBytes(this Stream s, long length)
+        {
+            List<byte> output = new List<byte>();
+            long alength = s.Position + length;
+
+            for (long i = s.Position; i < alength; i++)
+            {
+                output.Add((byte)s.ReadByte());
+            }
+
+            return output.ToArray();
+        }
+
+        public static string Decode(this byte[] bytes, Encoding encoding)
+        {
+            string output = encoding.GetString(bytes);
+
+            return encoding == Encoding.Unicode ? output.Replace("\u0000", "").Replace("\n", "") : output;
+        }
+
+        public static string YesNo(this bool value) => value ? "yes" : "no";
+
+        public static string PrettifyHex(this string s, int partLength)
         {
             string output = "";
+            for (var i = 0; i < s.Length; i += partLength)
+            {
+                output += $"{s.Substring(i, Math.Min(partLength, s.Length - i))}\n";
+            }
+
+            return output;
+        }
+
+        public static string Hex(this byte[] bytes, bool littleEndian = false)
+        {
+            string output = "";
+
+            if (littleEndian)
+            {
+                Array.Reverse(bytes);
+            }
 
             foreach (byte b in bytes)
             {
@@ -188,7 +197,7 @@ namespace CTR.NET
             return output;
         }
 
-        public static byte[] Copy(this byte[] bytes, int startOffset, int endOffset)
+        public static byte[] TakeBytes(this byte[] bytes, int startOffset, int endOffset)
         {
             int count = endOffset - startOffset;
             byte[] output = new byte[count];
@@ -198,5 +207,37 @@ namespace CTR.NET
         }
 
         public static byte[] Combine(this byte[] a, byte[] b) => a.Concat(b).ToArray();
+
+        public static Stream Encrypt(this Aes cipher, byte[] data)
+        {
+            ICryptoTransform encryptor = cipher.CreateEncryptor(cipher.Key, cipher.IV);
+
+            using (MemoryStream ms = new MemoryStream())
+            {
+                using (CryptoStream cs = new CryptoStream(ms, encryptor, CryptoStreamMode.Write))
+                {
+                    cs.Write(data, 0, data.Length);
+                    cs.FlushFinalBlock();
+
+                    return ms;
+                }
+            }
+        }
+
+        public static Stream Decrypt(this Aes cipher, byte[] data)
+        {
+            ICryptoTransform decryptor = cipher.CreateDecryptor(cipher.Key, cipher.IV);
+
+            using (MemoryStream ms = new MemoryStream())
+            {
+                using (CryptoStream cs = new CryptoStream(ms, decryptor, CryptoStreamMode.Write))
+                {
+                    cs.Write(data, 0, data.Length);
+                    cs.FlushFinalBlock();
+
+                    return ms;
+                }
+            }
+        }
     }
 }

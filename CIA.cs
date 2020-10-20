@@ -5,7 +5,7 @@ using System.Linq;
 
 namespace CTR.NET
 {
-    public class CIA
+    public class CIAInfo
     {
         public enum ContentType
         {
@@ -29,10 +29,10 @@ namespace CTR.NET
         public CIASectionInfo MetaInfo { get; private set; }
         public List<ContentChunkRecord> ActiveContentsInfo { get; private set; }
         public List<CIASectionInfo> Contents { get; private set; }
-        public TMD TitleMetadata { get; private set; }
+        public TMDInfo TitleMetadata { get; private set; }
         private string FilePath { get; set; }
 
-        public CIA(string pathToCIA)
+        public CIAInfo(string pathToCIA)
         {
             if (!File.Exists(pathToCIA))
             {
@@ -77,12 +77,11 @@ namespace CTR.NET
             int tmdOffset = ticketOffset + Tools.RoundUp(ticketSize, AlignSize);
             long contentOffset = tmdOffset + Tools.RoundUp(tmdSize, AlignSize);
             long metaOffset = contentOffset + Tools.RoundUp(contentSize, AlignSize);
-            //titlkey loading go here
 
             List<int> ActiveContentsInTmd = new List<int>();
             this.ActiveContentsInfo = new List<ContentChunkRecord>();
 
-            TMD tmdData = TMDReader.Read(Tools.ReadBytes(pathToCIA, tmdOffset, tmdOffset + tmdSize), true);
+            TMDInfo tmdData = TMDInfo.Read(Tools.ReadBytes(pathToCIA, tmdOffset, tmdOffset + tmdSize), true);
             this.TitleMetadata = tmdData;
 
             foreach (ContentChunkRecord ccr in tmdData.ContentChunkRecords)
@@ -142,6 +141,28 @@ namespace CTR.NET
             {
                 Tools.ExtractFromFile(new FileStream(this.FilePath, FileMode.Open, FileAccess.Read), File.Create($"{outputDirectory.FullName}/{content.SectionName}.ncch"), content.Offset, content.Size);
             }
+        }
+    }
+
+    public class CIASectionInfo
+    {
+        public string SectionName { get; private set; }
+        public int ContentType { get; private set; }
+        public long Offset { get; private set; }
+        public long Size { get; private set; }
+
+        public CIASectionInfo(string sectionName, int contentType, long offset, long size)
+        {
+            SectionName = sectionName;
+            ContentType = contentType;
+            Offset = offset;
+            Size = size;
+        }
+
+        public override string ToString()
+        {
+            Console.WriteLine(Size);
+            return $"SECTION {SectionName.ToUpper()}:\n\nOffset: 0x{Offset.ToString("X").ToUpper()}-0x{(Offset + Size).ToString("X").ToUpper()}\nSize: {Size} (0x{Size.ToString("X").ToUpper()}) bytes";
         }
     }
 }
