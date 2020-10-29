@@ -125,7 +125,7 @@ namespace CTR.NET
                     "KTR" => "New Nintendo 3DS (KTR)",
                     "CTR" => "Original (Old) Nintendo 3DS (CTR)",
                     "TWL" => "Nintendo DSiWare (TWL)",
-                    _ => $"Unknown to CIAInfo, \"{productCode.Split("-")[0]}\". report this on GitHub so it can be added."
+                    _ => $"Unknown, \"{productCode.Split("-")[0]}\". report this on GitHub so it can be added."
                 };
 
                 this.ContentType = productCode.Split("-")[1] switch
@@ -136,7 +136,7 @@ namespace CTR.NET
                     "M" => "DLC",
                     "H" => "Demo",
                     "B" => "Demo",
-                    _ => $"Unknown to CIAInfo, \"{productCode.Split("-")[1]}\". Please report this on GitHub so it can be added."
+                    _ => $"Unknown, \"{productCode.Split("-")[1]}\". Please report this on GitHub so it can be added."
                 };
 
                 this.Region = productCode.Split("-")[2][3] switch
@@ -154,7 +154,7 @@ namespace CTR.NET
                     'K' => "Korea (K)",
                     'W' => "China (CN)",
                     'A' => "RegionFree (A)",
-                    _ => $"Unknown to CIAInfo, \"{productCode.Split("-")[2][3]}\"",
+                    _ => $"Unknown, \"{productCode.Split("-")[2][3]}\"",
                 };
             }
         }
