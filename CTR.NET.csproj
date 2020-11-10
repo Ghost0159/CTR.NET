@@ -1,9 +1,13 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Library</OutputType>
     <TargetFramework>netcoreapp3.1</TargetFramework>
     <StartupObject></StartupObject>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Inferno" Version="1.6.2" />
+  </ItemGroup>
 
 </Project>

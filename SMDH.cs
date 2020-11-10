@@ -29,22 +29,22 @@ namespace CTR.NET
 
         public SMDHInfo(byte[] smdhData)
         {
-            this.Magic = smdhData.TakeBytes(0x0, 0x4).Decode(Encoding.UTF8);
-            this.Version = Tools.GetVersion(smdhData.TakeBytes(0x4, 0x6), out int versionInt);
+            this.Magic = smdhData.TakeItems(0x0, 0x4).Decode(Encoding.UTF8);
+            this.Version = Tools.GetVersion(smdhData.TakeItems(0x4, 0x6), out int versionInt);
             this.VersionNumber = versionInt;
 
-            byte[] nameStructuresRaw = smdhData.TakeBytes(0x8, 0x2000);
+            byte[] nameStructuresRaw = smdhData.TakeItems(0x8, 0x2000);
             int index = 0;
 
             this.TitleNames = new List<SMDHTitleNameStructure>();
 
             for (int i = 0; i < nameStructuresRaw.Length - 0xA00; i += 0x200)
             {
-                this.TitleNames.Add(new SMDHTitleNameStructure(nameStructuresRaw.TakeBytes(i, i + 0x200), Languages[index]));
+                this.TitleNames.Add(new SMDHTitleNameStructure(nameStructuresRaw.TakeItems(i, i + 0x200), Languages[index]));
                 index++;
             }
 
-            this.ApplicationSettings = new SMDHApplicationSettings(smdhData.TakeBytes(0x2008, 0x2038));
+            this.ApplicationSettings = new SMDHApplicationSettings(smdhData.TakeItems(0x2008, 0x2038));
         }
 
         public SMDHInfo()
@@ -82,9 +82,9 @@ namespace CTR.NET
 
         public SMDHTitleNameStructure(byte[] titleNameStructureRaw, string language)
         {
-            this.LongTitle = titleNameStructureRaw.TakeBytes(0x0, 0x80).Decode(Encoding.Unicode);
-            this.ShortTitle = titleNameStructureRaw.TakeBytes(0x80, 0x180).Decode(Encoding.Unicode);
-            this.Publisher = titleNameStructureRaw.TakeBytes(0x180, 0x200).Decode(Encoding.Unicode);
+            this.LongTitle = titleNameStructureRaw.TakeItems(0x0, 0x80).Decode(Encoding.Unicode);
+            this.ShortTitle = titleNameStructureRaw.TakeItems(0x80, 0x180).Decode(Encoding.Unicode);
+            this.Publisher = titleNameStructureRaw.TakeItems(0x180, 0x200).Decode(Encoding.Unicode);
             this.Language = language;
         }
 
@@ -123,7 +123,7 @@ namespace CTR.NET
             this.GameRatings.Add(new GameRating(applicationSettings[9], "GRB (South Korea)"));
             this.GameRatings.Add(new GameRating(applicationSettings[10], "CGSRR (Taiwan)"));
             //15
-            int regionLockoutRaw = applicationSettings.TakeBytes(16, 20).IntLE();
+            int regionLockoutRaw = applicationSettings.TakeItems(16, 20).IntLE();
 
             if ((regionLockoutRaw & 0x01) == 1)
             {
@@ -158,13 +158,13 @@ namespace CTR.NET
                 this.RegionLockout = "Region Free (RF)";
             }
 
-            this.MatchmakerID = applicationSettings.TakeBytes(20, 24).Hex();
-            this.MatchmakerBitID = applicationSettings.TakeBytes(24, 32).Hex();
-            this.Flags = new SMDHFlags(applicationSettings.TakeBytes(32, 36).IntLE());
-            this.EulaVersion = Tools.GetVersion(applicationSettings.TakeBytes(36, 38), out int versionNumber);
+            this.MatchmakerID = applicationSettings.TakeItems(20, 24).Hex();
+            this.MatchmakerBitID = applicationSettings.TakeItems(24, 32).Hex();
+            this.Flags = new SMDHFlags(applicationSettings.TakeItems(32, 36).IntLE());
+            this.EulaVersion = Tools.GetVersion(applicationSettings.TakeItems(36, 38), out int versionNumber);
             this.EulaVersionNumber = versionNumber;
-            this.OptionalAnimationDefaultFrame = applicationSettings.TakeBytes(40, 44).Hex();
-            this.CEC_StreePassID = applicationSettings.TakeBytes(44, 48).IntLE().ToString();
+            this.OptionalAnimationDefaultFrame = applicationSettings.TakeItems(40, 44).Hex();
+            this.CEC_StreePassID = applicationSettings.TakeItems(44, 48).IntLE().ToString();
         }
 
         public SMDHApplicationSettings ()

@@ -133,13 +133,13 @@ namespace CTR.NET
                 throw new ArgumentException($"TMD Header size is wrong, expected 0xC4 but got {header.Length:X4}");
             }
 
-            byte[] titleId = header.TakeBytes(0x4C, 0x54);
-            int saveSize = header.TakeBytes(0x5A, 0x5E).IntLE();
-            int srlSaveSize = header.TakeBytes(0x5E, 0x62).IntLE();
-            int version = header.TakeBytes(0x9C, 0x9E).IntBE();
+            byte[] titleId = header.TakeItems(0x4C, 0x54);
+            int saveSize = header.TakeItems(0x5A, 0x5E).IntLE();
+            int srlSaveSize = header.TakeItems(0x5E, 0x62).IntLE();
+            int version = header.TakeItems(0x9C, 0x9E).IntBE();
             string versionstring = $"{(version >> 10) & 0x3F}.{(version >> 4) & 0x3F}.{version & 0xF}";
-            int contentCount = header.TakeBytes(0x9E, 0xA0).IntBE();
-            byte[] contentInfoRecordsHash = header.TakeBytes(0xA4, 0xC4);
+            int contentCount = header.TakeItems(0x9E, 0xA0).IntBE();
+            byte[] contentInfoRecordsHash = header.TakeItems(0xA4, 0xC4);
             byte[] contentInfoRecordsRaw = tmdDataStream.ReadBytes(0x900);
 
             if (contentInfoRecordsRaw.Length != 0x900)
@@ -160,14 +160,14 @@ namespace CTR.NET
 
             for (int i = 0; i < contentCount * ChunkRecordSize; i += ChunkRecordSize)
             {
-                byte[] contentChunk = contentChunkRecordsRaw.TakeBytes(i, i + ChunkRecordSize);
+                byte[] contentChunk = contentChunkRecordsRaw.TakeItems(i, i + ChunkRecordSize);
 
                 chunkRecords.Add(new ContentChunkRecord(
-                  contentChunk.TakeBytes(0x0, 0x4).Hex(),
-                  contentChunk.TakeBytes(0x4, 0x6).IntBE(),
-                  ContentTypeFlags.GetFlags(contentChunk.TakeBytes(0x6, 0x8).IntBE()),
-                  long.Parse(contentChunk.TakeBytes(0x8, 0x10).Hex(), System.Globalization.NumberStyles.HexNumber),
-                  contentChunk.TakeBytes(0x10, 0x30)
+                  contentChunk.TakeItems(0x0, 0x4).Hex(),
+                  contentChunk.TakeItems(0x4, 0x6).IntBE(),
+                  ContentTypeFlags.GetFlags(contentChunk.TakeItems(0x6, 0x8).IntBE()),
+                  long.Parse(contentChunk.TakeItems(0x8, 0x10).Hex(), System.Globalization.NumberStyles.HexNumber),
+                  contentChunk.TakeItems(0x10, 0x30)
                 ));
             }
 
@@ -175,14 +175,14 @@ namespace CTR.NET
 
             for (int i = 0; i < 0x900; i += 0x24)
             {
-                byte[] infoRecord = contentInfoRecordsRaw.TakeBytes(i, i + 0x24);
+                byte[] infoRecord = contentInfoRecordsRaw.TakeItems(i, i + 0x24);
 
                 if (infoRecord.Hex() != Enumerable.Repeat((byte)0x0, 0x24).ToArray().Hex())
                 {
                     infoRecords.Add(new ContentInfoRecord(
-                      infoRecord.TakeBytes(0x0, 0x2).IntBE(),
-                      infoRecord.TakeBytes(0x2, 0x4).IntBE(),
-                      infoRecord.TakeBytes(0x4, 0x24)
+                      infoRecord.TakeItems(0x0, 0x2).IntBE(),
+                      infoRecord.TakeItems(0x2, 0x4).IntBE(),
+                      infoRecord.TakeItems(0x4, 0x24)
                     ));
                 }
             }
@@ -209,7 +209,7 @@ namespace CTR.NET
 
                     foreach (ContentChunkRecord cr in toHash)
                     {
-                        dataToHash = dataToHash.Combine(cr.ToByteArray());
+                        dataToHash = dataToHash.MergeWith(cr.ToByteArray());
                     }
 
                     byte[] hash = Tools.HashSHA256(dataToHash);
@@ -223,20 +223,20 @@ namespace CTR.NET
                 }
             }
 
-            string issuer = Encoding.ASCII.GetString(header.TakeBytes(0x0, 0x40)).Replace("\0", "");
-            byte[] versionUnused = header.TakeBytes(0x40, 0x41);
-            byte[] caCrlVersion = header.TakeBytes(0x41, 0x42);
-            byte[] signerCrlVersion = header.TakeBytes(0x42, 0x43);
-            byte[] reserved1 = header.TakeBytes(0x43, 0x44);
-            byte[] systemVersion = header.TakeBytes(0x44, 0x4C);
-            byte[] titleType = header.TakeBytes(0x54, 0x58);
-            byte[] groupId = header.TakeBytes(0x58, 0x5A);
-            byte[] reserved2 = header.TakeBytes(0x62, 0x66);
-            byte[] srlFlag = header.TakeBytes(0x66, 0x67);
-            byte[] reserved3 = header.TakeBytes(0x67, 0x98);
-            byte[] accessRights = header.TakeBytes(0x98, 0x9C);
-            byte[] bootCount = header.TakeBytes(0xA0, 0xA2);
-            byte[] unusedPadding = header.TakeBytes(0xA2, 0xA4);
+            string issuer = Encoding.ASCII.GetString(header.TakeItems(0x0, 0x40)).Replace("\0", "");
+            byte[] versionUnused = header.TakeItems(0x40, 0x41);
+            byte[] caCrlVersion = header.TakeItems(0x41, 0x42);
+            byte[] signerCrlVersion = header.TakeItems(0x42, 0x43);
+            byte[] reserved1 = header.TakeItems(0x43, 0x44);
+            byte[] systemVersion = header.TakeItems(0x44, 0x4C);
+            byte[] titleType = header.TakeItems(0x54, 0x58);
+            byte[] groupId = header.TakeItems(0x58, 0x5A);
+            byte[] reserved2 = header.TakeItems(0x62, 0x66);
+            byte[] srlFlag = header.TakeItems(0x66, 0x67);
+            byte[] reserved3 = header.TakeItems(0x67, 0x98);
+            byte[] accessRights = header.TakeItems(0x98, 0x9C);
+            byte[] bootCount = header.TakeItems(0xA0, 0xA2);
+            byte[] unusedPadding = header.TakeItems(0xA2, 0xA4);
 
             return new TMDInfo(tmdData, sig, signature, header, titleId, saveSize, srlSaveSize, version, versionstring, contentCount, contentInfoRecordsRaw, contentInfoRecordsHash, contentChunkRecordsRaw, chunkRecords, infoRecords, issuer, versionUnused, caCrlVersion, signerCrlVersion, reserved1, systemVersion, titleType, groupId, reserved2, srlFlag, reserved3, accessRights, bootCount, unusedPadding);
         }
@@ -272,10 +272,10 @@ namespace CTR.NET
         public byte[] ToByteArray()
         {
             return Tools.HexToBytes(this.ID)
-                    .Combine(Tools.HexToBytes(this.ContentIndex.ToString("X4")))
-                    .Combine(Tools.HexToBytes(this.Type.AsInt().ToString("X4")))
-                    .Combine(Tools.HexToBytes(((int)this.Size).ToString("X16")))
-                    .Combine(this.Hash);
+                    .MergeWith(Tools.HexToBytes(this.ContentIndex.ToString("X4")))
+                    .MergeWith(Tools.HexToBytes(this.Type.AsInt().ToString("X4")))
+                    .MergeWith(Tools.HexToBytes(((int)this.Size).ToString("X16")))
+                    .MergeWith(this.Hash);
         }
     }
 

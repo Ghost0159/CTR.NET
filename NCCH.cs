@@ -38,21 +38,21 @@ namespace CTR.NET
         {
             byte[] ncchHeader = ncch.ReadBytes(512);
 
-            this.Signature = ncchHeader.TakeBytes(0x0, 0x100).Hex();
-            this.Magic = ncchHeader.TakeBytes(0x100, 0x104).Decode(Encoding.UTF8);
-            this.ContentSize = ncchHeader.TakeBytes(0x104, 0x108).IntLE() * 0x200;
-            this.TitleID = ncchHeader.TakeBytes(0x108, 0x110).Hex(true);
-            this.MakerCode = $"{ncchHeader.TakeBytes(0x110, 0x112).Hex()} (\"{ncchHeader.TakeBytes(0x110, 0x112).Decode(Encoding.UTF8)}\")";
-            this.Version = Tools.GetVersion(ncchHeader.TakeBytes(0x112, 0x114), out int versionNumber);
+            this.Signature = ncchHeader.TakeItems(0x0, 0x100).Hex();
+            this.Magic = ncchHeader.TakeItems(0x100, 0x104).Decode(Encoding.UTF8);
+            this.ContentSize = ncchHeader.TakeItems(0x104, 0x108).IntLE() * 0x200;
+            this.TitleID = ncchHeader.TakeItems(0x108, 0x110).Hex(true);
+            this.MakerCode = $"{ncchHeader.TakeItems(0x110, 0x112).Hex()} (\"{ncchHeader.TakeItems(0x110, 0x112).Decode(Encoding.UTF8)}\")";
+            this.Version = Tools.GetVersion(ncchHeader.TakeItems(0x112, 0x114), out int versionNumber);
             this.VersionNumber = versionNumber;
-            this.ProgramID = ncchHeader.TakeBytes(0x118, 0x120).Hex(true);
-            this.LogoRegionHash = ncchHeader.TakeBytes(0x130, 0x150).Hex();
-            this.ProductCode = new ProductCodeInfo(ncchHeader.TakeBytes(0x150, 0x160).Decode(Encoding.UTF8));
-            this.ExHeaderHash = ncchHeader.TakeBytes(0x160, 0x180).Hex();
-            this.ExHeaderSize = ncchHeader.TakeBytes(0x180, 0x184).IntLE();
-            this.Flags = new NCCHFlags(ncchHeader.TakeBytes(0x188, 0x190));
-            this.PlainRegionOffset = ncchHeader.TakeBytes(0x190, 0x194).IntLE() * 0x200;
-            this.PlainRegionSize = ncchHeader.TakeBytes(0x194, 0x198).IntLE() * 0x200;
+            this.ProgramID = ncchHeader.TakeItems(0x118, 0x120).Hex(true);
+            this.LogoRegionHash = ncchHeader.TakeItems(0x130, 0x150).Hex();
+            this.ProductCode = new ProductCodeInfo(ncchHeader.TakeItems(0x150, 0x160).Decode(Encoding.UTF8));
+            this.ExHeaderHash = ncchHeader.TakeItems(0x160, 0x180).Hex();
+            this.ExHeaderSize = ncchHeader.TakeItems(0x180, 0x184).IntLE();
+            this.Flags = new NCCHFlags(ncchHeader.TakeItems(0x188, 0x190));
+            this.PlainRegionOffset = ncchHeader.TakeItems(0x190, 0x194).IntLE() * 0x200;
+            this.PlainRegionSize = ncchHeader.TakeItems(0x194, 0x198).IntLE() * 0x200;
 
             using (ncch)
             {
@@ -60,16 +60,16 @@ namespace CTR.NET
                 this.PlainRegion = ncch.ReadBytes(this.PlainRegionSize).Decode(Encoding.UTF8).Replace("\0", "\n").Trim();
             }
 
-            this.LogoRegionOffset = ncchHeader.TakeBytes(0x198, 0x19C).IntLE() * 0x200;
-            this.LogoRegionSize = ncchHeader.TakeBytes(0x19C, 0x1A0).IntLE() * 0x200;
-            this.ExeFSOffset = ncchHeader.TakeBytes(0x1A0, 0x1A4).IntLE() * 0x200;
-            this.ExeFSSize = ncchHeader.TakeBytes(0x1A4, 0x1A8).IntLE() * 0x200;
-            this.ExeFSHashRegionSize = ncchHeader.TakeBytes(0x1A8, 0x1AC).IntLE() * 0x200;
-            this.RomFSOffset = ncchHeader.TakeBytes(0x1B0, 0x1B4).IntLE() * 0x200;
-            this.RomFSSize = ncchHeader.TakeBytes(0x1B4, 0x1B8).IntLE() * 0x200;
-            this.RomFSHashRegionSize = ncchHeader.TakeBytes(0x1B8, 0x1BC).IntLE() * 0x200;
-            this.ExeFSSuperBlockHash = ncchHeader.TakeBytes(0x1C0, 0x1E0).Hex();
-            this.RomFSSuperBlockHash = ncchHeader.TakeBytes(0x1E0, 0x200).Hex();
+            this.LogoRegionOffset = ncchHeader.TakeItems(0x198, 0x19C).IntLE() * 0x200;
+            this.LogoRegionSize = ncchHeader.TakeItems(0x19C, 0x1A0).IntLE() * 0x200;
+            this.ExeFSOffset = ncchHeader.TakeItems(0x1A0, 0x1A4).IntLE() * 0x200;
+            this.ExeFSSize = ncchHeader.TakeItems(0x1A4, 0x1A8).IntLE() * 0x200;
+            this.ExeFSHashRegionSize = ncchHeader.TakeItems(0x1A8, 0x1AC).IntLE() * 0x200;
+            this.RomFSOffset = ncchHeader.TakeItems(0x1B0, 0x1B4).IntLE() * 0x200;
+            this.RomFSSize = ncchHeader.TakeItems(0x1B4, 0x1B8).IntLE() * 0x200;
+            this.RomFSHashRegionSize = ncchHeader.TakeItems(0x1B8, 0x1BC).IntLE() * 0x200;
+            this.ExeFSSuperBlockHash = ncchHeader.TakeItems(0x1C0, 0x1E0).Hex();
+            this.RomFSSuperBlockHash = ncchHeader.TakeItems(0x1E0, 0x200).Hex();
         }
 
         public override string ToString()

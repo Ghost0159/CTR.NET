@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
+using System.Numerics;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -19,6 +19,20 @@ namespace CTR.NET
             Array.Reverse(versionBytes);
 
             versionInt = ((versionBytes[1] & 0xff) << 8) + (versionBytes[0] & 0xff);
+
+            return $"{(versionInt >> 10) & 0x3F}.{(versionInt >> 4) & 0x3F}.{versionInt & 0xF}";
+        }
+
+        public static string GetVersion(byte[] versionBytes)
+        {
+            if (versionBytes.Length != 2)
+            {
+                throw new ArgumentException("Input byte array was not 2 bytes long.");
+            }
+
+            Array.Reverse(versionBytes);
+
+            int versionInt = ((versionBytes[1] & 0xff) << 8) + (versionBytes[0] & 0xff);
 
             return $"{(versionInt >> 10) & 0x3F}.{(versionInt >> 4) & 0x3F}.{versionInt & 0xF}";
         }
@@ -54,10 +68,6 @@ namespace CTR.NET
         {
             return (int)Math.Ceiling((double)offset / alignment) * alignment;
         }
-
-        
-
-        
 
         public static byte[] HashSHA256(byte[] inputData)
         {
@@ -133,9 +143,9 @@ namespace CTR.NET
 
     public static class ExtensionMethods
     {
-        public static int IntLE(this byte[] data, int startIndex = 0) => (data[startIndex + 3] << 24) | (data[startIndex + 2] << 16) | (data[startIndex + 1] << 8) | data[startIndex];
+        public static int IntLE(this byte[] data) => (data[3] << 24) | (data[2] << 16) | (data[1] << 8) | data[0];
 
-        public static int IntBE(this byte[] data, int startIndex = 0)
+        public static int IntBE(this byte[] data)
         {
             if (data.Length < 4)
             {
@@ -143,8 +153,18 @@ namespace CTR.NET
             }
             else
             {
-                return (data[startIndex] << 24) | (data[startIndex + 1] << 16) | (data[startIndex + 2] << 8) | data[startIndex + 3];
+                return (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
             }
+        }
+
+        public static int ToInt32(this byte[] b)
+        {
+            return BitConverter.ToInt32(b);
+        }
+
+        public static int ToInt64(this byte[] b)
+        {
+            return BitConverter.ToInt32(b);
         }
 
         public static byte[] ReadBytes(this Stream s, long length)
@@ -206,38 +226,116 @@ namespace CTR.NET
             return output;
         }
 
-        public static byte[] Combine(this byte[] a, byte[] b) => a.Concat(b).ToArray();
-
-        public static Stream Encrypt(this Aes cipher, byte[] data)
+        //Linq is slow, imma use this instead because yes
+        public static T[] FReverse<T>(this T[] input)
         {
-            ICryptoTransform encryptor = cipher.CreateEncryptor(cipher.Key, cipher.IV);
+            T[] output = new T[input.Length];
+            int index = 0;
 
-            using (MemoryStream ms = new MemoryStream())
+            for (int i = input.Length - 1; i >= 0; i--)
             {
-                using (CryptoStream cs = new CryptoStream(ms, encryptor, CryptoStreamMode.Write))
-                {
-                    cs.Write(data, 0, data.Length);
-                    cs.FlushFinalBlock();
+                output[index] = input[i];
+                index++;
+            }
 
-                    return ms;
-                }
+            return output;
+        }
+
+        public static List<T> TakeItems<T>(this List<T> input, int startIndex, int endIndex)
+        {
+            List<T> output = new List<T>();
+
+            if (startIndex > input.Count || endIndex > input.Count)
+            {
+                throw new ArgumentException("Start Index and End Index must refer to a location within the input list.");
+            }
+
+            for (int i = startIndex; i < endIndex; i++)
+            {
+                output.Add(input[i]);
+            }
+
+            return output;
+        }
+
+        public static T[] TakeItems<T>(this T[] input, int startIndex, int endIndex)
+        {
+            if (startIndex > input.Length || endIndex > input.Length)
+            {
+                throw new ArgumentException("Start Index and End Index must refer to a location within the input array.");
+            }
+
+            T[] output = new T[endIndex - startIndex];
+
+            int index = 0;
+
+            for (int i = startIndex; i < endIndex; i++)
+            {
+                output[index] = input[i];
+                index++;
+            }
+
+            return output;
+        }
+
+        public static List<T> MergeWith<T>(this List<T> input, List<T> listToMergeWith)
+        {
+            List<T> outputList = input;
+
+            for (int i = 0; i < listToMergeWith.Count; i++)
+            {
+                outputList.Add(listToMergeWith[i]);
+            }
+
+            return outputList;
+        }
+
+        public static T[] MergeWith<T>(this T[] input, T[] arrayToMergeWith)
+        {
+            T[] outputArray = new T[input.Length + arrayToMergeWith.Length];
+
+            Array.Copy(input, 0, outputArray, 0, input.Length);
+            Array.Copy(arrayToMergeWith, 0, outputArray, input.Length, arrayToMergeWith.Length);
+
+            return outputArray;
+        }
+
+        public static byte[] HexToByteArray(this string hex)
+        {
+            if (hex.Length % 2 == 1)
+                throw new Exception("The binary key cannot have an odd number of digits");
+
+            byte[] arr = new byte[hex.Length >> 1];
+
+            for (int i = 0; i < hex.Length >> 1; ++i)
+            {
+                arr[i] = (byte)((GetHexVal(hex[i << 1]) << 4) + (GetHexVal(hex[(i << 1) + 1])));
+            }
+
+            return arr;
+        }
+
+        public static int GetHexVal(char hex)
+        {
+            int val = (int)hex;
+            return val - (val < 58 ? 48 : (val < 97 ? 55 : 87));
+        }
+
+        public static int Int(this bool bl) => (bl) ? 1 : 0;
+
+        public static byte[] HashSHA256(this byte[] bytes)
+        {
+            using (SHA256 sha = SHA256.Create())
+            {
+                return sha.ComputeHash(bytes);
             }
         }
 
-        public static Stream Decrypt(this Aes cipher, byte[] data)
+        public static BigInteger ToUnsignedBigInt(this byte[] bigIntBytes)
         {
-            ICryptoTransform decryptor = cipher.CreateDecryptor(cipher.Key, cipher.IV);
-
-            using (MemoryStream ms = new MemoryStream())
-            {
-                using (CryptoStream cs = new CryptoStream(ms, decryptor, CryptoStreamMode.Write))
-                {
-                    cs.Write(data, 0, data.Length);
-                    cs.FlushFinalBlock();
-
-                    return ms;
-                }
-            }
+            return BitConverter.IsLittleEndian
+                ? new BigInteger(bigIntBytes.FReverse().MergeWith(new byte[] { 0 }))
+                : new BigInteger(bigIntBytes.MergeWith(new byte[] { 0 }));
         }
     }
 }
