@@ -17,4 +17,4 @@ Currently Suppported Types:
 - Ticket (.tik, ticket.bin) General Information
 - SMDH (icon.bin, icon.smdh) General Information, HOME Menu Options, etc.
 
-There won't be crypto support unless some fucking angel from C# Heaven comes down and gives me a Crypto Library with 128 bit `AES-CTR` with BigInteger Initial CTR support.
+Now has a Crypto Engine that is able to decrypt CIAs.
