@@ -32,28 +32,42 @@ namespace CTR.NET
             {
                 this.SignatureInfo = Signature.Parse(ms.ReadBytes(0x4));
                 this.SignatureData = ms.ReadBytes(this.SignatureInfo.Size);
+
                 ms.ReadBytes(this.SignatureInfo.PaddingSize);
+
                 this.Issuer = ms.ReadBytes(0x40).Decode(Encoding.UTF8);
                 this.ECCPublicKey = ms.ReadBytes(0x3C);
                 this.Version = (byte)ms.ReadByte();
                 this.CaCrlVersion = (byte)ms.ReadByte();
                 this.SignerCrlVersion = (byte)ms.ReadByte();
                 this.Titlekey = ms.ReadBytes(0x10);
+
                 ms.ReadByte(); //reserved
+
                 this.TicketID = ms.ReadBytes(0x8);
                 this.ConsoleID = ms.ReadBytes(0x4);
                 this.TitleID = ms.ReadBytes(0x8);
+                
                 ms.ReadBytes(0x2); //reserved 2
+
                 this.TicketTitleVersion = Tools.GetVersion(ms.ReadBytes(0x2), out int versionInt);
                 this.TicketTitleVersionNumber = versionInt;
+
                 ms.ReadBytes(0x8); //reserved 3
+
                 this.LicenseType = (byte)ms.ReadByte();
                 this.CommonKeyYIndex = (byte)ms.ReadByte();
+
                 ms.ReadBytes(0x2A); //reserved 4
+
                 this.EShopAccountID = ms.ReadBytes(0x4);
+
                 ms.ReadByte(); //reserved 5
+
                 this.Audit = (byte)ms.ReadByte();
+
                 ms.ReadBytes(0x42); //reserved 6
+                
                 this.Limits = ms.ReadBytes(0x40);
                 this.ContentIndex = ms.ReadBytes(ms.Length - ms.Position);
                 this.TicketSize = (int)ms.Length;

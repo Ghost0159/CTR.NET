@@ -15,10 +15,16 @@ namespace CTR.NET
             this.Size = size;
         }
 
-        public static Signature Parse(byte[] sigBytes)
+        public static Signature Parse(byte[] sigTypeBytes)
         {
             Signature output;
-            switch (Convert.ToInt32(sigBytes.Hex(), 16))
+
+            if (BitConverter.IsLittleEndian)
+            {
+                Array.Reverse(sigTypeBytes);
+            }
+            
+            switch (BitConverter.ToInt32(sigTypeBytes))
             {
                 case 0x00010000:
                     output = new Signature("RSA_4096_SHA1", 0x200, 0x3C);

@@ -48,15 +48,10 @@ namespace CTR.NET
 
             using (FileStream fs = File.OpenRead(pathToFile))
             {
-                fs.Position = startOffset;
+                fs.Seek(startOffset, SeekOrigin.Begin);
 
-                while (fs.Position < endOffset)
-                {
-                    bytes.Add((byte)fs.ReadByte());
-                }
+                return fs.ReadBytes(endOffset);
             }
-
-            return bytes.ToArray();
         }
 
         public static int RoundUp(int offset, int alignment)

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Globalization;
 
 namespace CTR.NET
 {
@@ -24,21 +25,16 @@ namespace CTR.NET
         public List<ContentChunkRecord> ContentChunkRecords { get; private set; }
         public List<ContentInfoRecord> ContentInfoRecords { get; private set; }
         public string Issuer { get; private set; }
-        public byte[] UnusedVersion { get; private set; }
         public byte[] CaCrlVersion { get; private set; }
         public byte[] SignerCrlVersion { get; private set; }
-        public byte[] Reserved1 { get; private set; }
         public byte[] SystemVersion { get; private set; }
         public byte[] TitleType { get; private set; }
         public byte[] GroupId { get; private set; }
-        public byte[] Reserved2 { get; private set; }
         public byte[] SrlFlag { get; private set; }
-        public byte[] Reserved3 { get; private set; }
         public byte[] AccessRights { get; private set; }
         public byte[] BootCount { get; private set; }
-        public byte[] UnusedPadding { get; private set; }
 
-        public TMDInfo(byte[] rawData, Signature signature, byte[] signatureData, byte[] header, byte[] titleId, int saveDataSize, int srlSaveDataSize, int rawTitleVersion, string titleVersion, int contentCount, byte[] rawContentInfoRecords, byte[] contentInfoRecordsHash, byte[] rawContentChunkRecords, List<ContentChunkRecord> contentChunkRecords, List<ContentInfoRecord> contentInfoRecords, string issuer, byte[] unusedVersion, byte[] caCrlVersion, byte[] signerCrlVersion, byte[] reserved1, byte[] systemVersion, byte[] titleType, byte[] groupId, byte[] reserved2, byte[] srlFlag, byte[] reserved3, byte[] accessRights, byte[] bootCount, byte[] unusedPadding)
+        public TMDInfo(byte[] rawData, Signature signature, byte[] signatureData, byte[] header, byte[] titleId, int saveDataSize, int srlSaveDataSize, int rawTitleVersion, string titleVersion, int contentCount, byte[] rawContentInfoRecords, byte[] contentInfoRecordsHash, byte[] rawContentChunkRecords, List<ContentChunkRecord> contentChunkRecords, List<ContentInfoRecord> contentInfoRecords, string issuer, byte[] caCrlVersion, byte[] signerCrlVersion, byte[] systemVersion, byte[] titleType, byte[] groupId, byte[] srlFlag, byte[] accessRights, byte[] bootCount)
         {
             this.RawData = rawData;
             this.SignatureInfo = signature;
@@ -56,19 +52,14 @@ namespace CTR.NET
             this.ContentChunkRecords = contentChunkRecords;
             this.ContentInfoRecords = contentInfoRecords;
             this.Issuer = issuer;
-            this.UnusedVersion = unusedVersion;
             this.CaCrlVersion = caCrlVersion;
             this.SignerCrlVersion = signerCrlVersion;
-            this.Reserved1 = reserved1;
             this.SystemVersion = systemVersion;
             this.TitleType = titleType;
             this.GroupId = groupId;
-            this.Reserved2 = reserved2;
             this.SrlFlag = srlFlag;
-            this.Reserved3 = reserved3;
             this.AccessRights = accessRights;
             this.BootCount = bootCount;
-            this.UnusedPadding = unusedPadding;
         }
 
         public override string ToString()
@@ -84,18 +75,13 @@ namespace CTR.NET
                 $"Amount of contents defined in TMD: {this.ContentCount}\n" +
                 $"Content Info Records Hash: {this.ContentInfoRecordsHash.Hex()}\n" +
                 $"Issuer: { this.Issuer}\n" +
-                $"Unused Version: { this.UnusedVersion.Hex()}\n" +
                 $"CA CRL Version: { this.CaCrlVersion.Hex()}\n" +
                 $"Signer CRL Version: {this.SignerCrlVersion.Hex()}\n" +
-                $"Reserved(1): { this.Reserved1.Hex()}\n" +
                 $"System Version: { this.SystemVersion.Hex()}\n" +
                 $"Group ID: { this.GroupId.Hex()}\n" +
-                $"Reserved(2): { this.Reserved2.Hex()}\n" +
                 $"SRL Flag: { this.SrlFlag.Hex()}\n" +
-                $"Reserved(3): { this.Reserved3.Hex()}\n" +
                 $"Access Rights: { this.AccessRights.Hex()}\n" +
-                $"Boot Count: { this.BootCount.Hex()}\n" +
-                $"Unused Padding: { this.UnusedPadding.Hex()}";
+                $"Boot Count: { this.BootCount.Hex()}\n";
 
             foreach (ContentChunkRecord ccr in this.ContentChunkRecords)
             {
@@ -162,13 +148,7 @@ namespace CTR.NET
             {
                 byte[] contentChunk = contentChunkRecordsRaw.TakeItems(i, i + ChunkRecordSize);
 
-                chunkRecords.Add(new ContentChunkRecord(
-                  contentChunk.TakeItems(0x0, 0x4).Hex(),
-                  contentChunk.TakeItems(0x4, 0x6).IntBE(),
-                  ContentTypeFlags.GetFlags(contentChunk.TakeItems(0x6, 0x8).IntBE()),
-                  long.Parse(contentChunk.TakeItems(0x8, 0x10).Hex(), System.Globalization.NumberStyles.HexNumber),
-                  contentChunk.TakeItems(0x10, 0x30)
-                ));
+                chunkRecords.Add(new ContentChunkRecord(contentChunk));
             }
 
             List<ContentInfoRecord> infoRecords = new List<ContentInfoRecord>();
@@ -177,13 +157,9 @@ namespace CTR.NET
             {
                 byte[] infoRecord = contentInfoRecordsRaw.TakeItems(i, i + 0x24);
 
-                if (infoRecord.Hex() != Enumerable.Repeat((byte)0x0, 0x24).ToArray().Hex())
+                if (!infoRecord.All(b => b == 0x0))
                 {
-                    infoRecords.Add(new ContentInfoRecord(
-                      infoRecord.TakeItems(0x0, 0x2).IntBE(),
-                      infoRecord.TakeItems(0x2, 0x4).IntBE(),
-                      infoRecord.TakeItems(0x4, 0x24)
-                    ));
+                    infoRecords.Add(new ContentInfoRecord(infoRecord));
                 }
             }
 
@@ -194,6 +170,7 @@ namespace CTR.NET
                 foreach (ContentInfoRecord infoRecord in infoRecords)
                 {
                     List<ContentChunkRecord> toHash = new List<ContentChunkRecord>();
+
                     foreach (ContentChunkRecord chunkRecord in chunkRecords)
                     {
                         if (hashedChunkRecords.Contains(chunkRecord))
@@ -209,132 +186,111 @@ namespace CTR.NET
 
                     foreach (ContentChunkRecord cr in toHash)
                     {
-                        dataToHash = dataToHash.MergeWith(cr.ToByteArray());
+                        dataToHash = dataToHash.MergeWith(cr.Raw);
                     }
 
                     byte[] hash = Tools.HashSHA256(dataToHash);
 
                     if (hash.Hex() != infoRecord.Hash.Hex())
                     {
-                        Console.WriteLine();
-                        Console.WriteLine("Got: " + hash.Hex());
+                        Console.WriteLine("\nGot: " + hash.Hex());
                         throw new ArgumentException($"Invalid Info Records Detected.\nExpected: {infoRecord.Hash.Hex()}\nGot: {hash.Hex()}");
                     }
                 }
             }
 
             string issuer = Encoding.ASCII.GetString(header.TakeItems(0x0, 0x40)).Replace("\0", "");
-            byte[] versionUnused = header.TakeItems(0x40, 0x41);
             byte[] caCrlVersion = header.TakeItems(0x41, 0x42);
             byte[] signerCrlVersion = header.TakeItems(0x42, 0x43);
-            byte[] reserved1 = header.TakeItems(0x43, 0x44);
             byte[] systemVersion = header.TakeItems(0x44, 0x4C);
             byte[] titleType = header.TakeItems(0x54, 0x58);
             byte[] groupId = header.TakeItems(0x58, 0x5A);
-            byte[] reserved2 = header.TakeItems(0x62, 0x66);
             byte[] srlFlag = header.TakeItems(0x66, 0x67);
-            byte[] reserved3 = header.TakeItems(0x67, 0x98);
             byte[] accessRights = header.TakeItems(0x98, 0x9C);
             byte[] bootCount = header.TakeItems(0xA0, 0xA2);
-            byte[] unusedPadding = header.TakeItems(0xA2, 0xA4);
 
-            return new TMDInfo(tmdData, sig, signature, header, titleId, saveSize, srlSaveSize, version, versionstring, contentCount, contentInfoRecordsRaw, contentInfoRecordsHash, contentChunkRecordsRaw, chunkRecords, infoRecords, issuer, versionUnused, caCrlVersion, signerCrlVersion, reserved1, systemVersion, titleType, groupId, reserved2, srlFlag, reserved3, accessRights, bootCount, unusedPadding);
+            return new TMDInfo(tmdData, sig, signature, header, titleId, saveSize, srlSaveSize, version, versionstring, contentCount, contentInfoRecordsRaw, contentInfoRecordsHash, contentChunkRecordsRaw, chunkRecords, infoRecords, issuer, caCrlVersion, signerCrlVersion, systemVersion, titleType, groupId, srlFlag, accessRights, bootCount);
         }
     }
 
     public class ContentChunkRecord
     {
+        public byte[] Raw { get; private set; }
         public string ID { get; private set; }
         public int ContentIndex { get; private set; }
         public ContentTypeFlags Type { get; private set; }
         public long Size { get; private set; }
         public byte[] Hash { get; private set; }
 
-        public ContentChunkRecord(string id, int contentIndex, ContentTypeFlags flags, long size, byte[] hash)
+
+        public ContentChunkRecord(byte[] contentChunk)
         {
-            this.ID = id;
-            this.ContentIndex = contentIndex;
-            this.Type = flags;
-            this.Size = size;
-            this.Hash = hash;
+            this.Raw = contentChunk;
+            this.ID = contentChunk.TakeItems(0x0, 0x4).Hex();
+            this.ContentIndex = contentChunk.TakeItems(0x4, 0x6).IntBE();
+            this.Type = new ContentTypeFlags(contentChunk.TakeItems(0x6, 0x8).IntBE());
+            this.Size = long.Parse(contentChunk.TakeItems(0x8, 0x10).Hex(), NumberStyles.HexNumber);
+            this.Hash = contentChunk.TakeItems(0x10, 0x30);
         }
 
         public override string ToString() =>
             $"--------------------------------\n" +
-            $"CONTENT CHUNK RECORD INFO FOR INDEX {this.ContentIndex:X4}.{this.ID}:\n\n" +
+            $"Content Chunk Record - {this.ContentIndex:X4}.{this.ID}:\n\n" +
             $"ID: {this.ID}\n" +
             $"Content Index: {this.ContentIndex} ({this.ContentIndex:X4})\n\n" +
             $"{this.Type}\n\n" +
             $"Content Size: {this.Size} (0x{Convert.ToString(this.Size, 16).ToUpper()}) bytes\n" +
             $"Hash: {this.Hash.Hex()}\n" +
             $"--------------------------------";
-
-        public byte[] ToByteArray()
-        {
-            return Tools.HexToBytes(this.ID)
-                    .MergeWith(Tools.HexToBytes(this.ContentIndex.ToString("X4")))
-                    .MergeWith(Tools.HexToBytes(this.Type.AsInt().ToString("X4")))
-                    .MergeWith(Tools.HexToBytes(((int)this.Size).ToString("X16")))
-                    .MergeWith(this.Hash);
-        }
     }
 
     public class ContentInfoRecord
     {
+        public byte[] Raw { get; private set; }
         public int IndexOffset { get; private set; }
         public int CommandCount { get; private set; }
         public byte[] Hash { get; private set; }
 
-        public ContentInfoRecord(int indexOffset, int commandCount, byte[] hash)
+        public ContentInfoRecord(byte[] infoRecord)
         {
-            this.IndexOffset = indexOffset;
-            this.CommandCount = commandCount;
-            this.Hash = hash;
+            this.Raw = infoRecord;
+            this.IndexOffset = infoRecord.TakeItems(0x0, 0x2).IntBE();
+            this.CommandCount = infoRecord.TakeItems(0x2, 0x4).IntBE();
+            this.Hash = infoRecord.TakeItems(0x4, 0x24);   
         }
 
-        public override string ToString() => $"CONTENT INFO RECORD:\n\nIndex Offset: {this.IndexOffset}\nCommand Count: {this.CommandCount}\nHash: {this.Hash.Hex()}";
+        public override string ToString() => $"Content Info Record:\n\nIndex Offset: {this.IndexOffset}\nCommand Count: {this.CommandCount}\nHash: {this.Hash.Hex()}";
     }
 
     public class ContentTypeFlags
     {
+        public int Raw { get; private set; }
         public bool Encrypted { get; private set; }
         public bool IsDisc { get; private set; }
         public bool Cfm { get; private set; }
         public bool Optional { get; private set; }
         public bool Shared { get; private set; }
 
-        public ContentTypeFlags(bool enc, bool disc, bool cfm, bool opt, bool shared)
+        public ContentTypeFlags(int flags)
         {
-            this.Encrypted = enc;
-            this.IsDisc = disc;
-            this.Cfm = cfm;
-            this.Optional = opt;
-            this.Shared = shared;
+            this.Raw = flags;
+            this.Encrypted = (flags & 1) > 0;
+            this.IsDisc = (flags & 2) > 0;
+            this.Cfm = (flags & 4) > 0;
+            this.Optional = (flags & 0x4000) > 0;
+            this.Shared = (flags & 0x8000) > 0;
         }
 
         private static bool BoolFromInt(int input) => (input == 0) ? false : true;
 
         public override string ToString() =>
             $"================================\n" +
-            $"CONTENT TYPE FLAGS:\n\n" +
-            $"ENCRYPTED: {this.Encrypted}\n" +
-            $"IS DISC: {this.IsDisc}\n" +
+            $"Content Type Flags:\n\n" +
+            $"Encrypted: {this.Encrypted}\n" +
+            $"Is Disc: {this.IsDisc}\n" +
             $"CFM: {this.Cfm}\n" +
-            $"OPTIONAL: {this.Optional}\n" +
-            $"SHARED: {this.Shared}\n" +
+            $"Optional: {this.Optional}\n" +
+            $"Shared: {this.Shared}\n" +
             $"================================";
-
-        public static ContentTypeFlags GetFlags(int flags)
-        {
-            return new ContentTypeFlags(
-              BoolFromInt(flags & 1),
-              BoolFromInt(flags & 2),
-              BoolFromInt(flags & 4),
-              BoolFromInt(flags & 0x4000),
-              BoolFromInt(flags & 0x8000)
-            );
-        }
-
-        public int AsInt() => (((this.Encrypted == true) ? 1 : 0) | (((this.IsDisc == true) ? 1 : 0) << 1) | (((this.Cfm == true) ? 1 : 0) << 2) | (((this.Optional == true) ? 1 : 0) << 14) | (((this.Shared == true) ? 1 : 0) << 15));
     }
 }

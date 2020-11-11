@@ -99,7 +99,7 @@ namespace CTR.NET
             return new NCSDInfo(imageSize, sections, mediaId, pathToNCSD);
         }
 
-        public void ExtractSection(FileStream outputFile, int id)
+        public void ExtractContent(FileStream outputFile, int id)
         {
             if (!this.Sections.Any(s => s.Section == id))
             {
@@ -111,11 +111,11 @@ namespace CTR.NET
             Tools.ExtractFromFile(new FileStream(this.FilePath, FileMode.Open, FileAccess.Read), outputFile, selectedSection.Offset, selectedSection.Offset + selectedSection.Size);
         }
 
-        public void ExtractAllSections(DirectoryInfo outputDirectory)
+        public void ExtractAllContents(DirectoryInfo outputDirectory)
         {
             foreach (NCSDSectionInfo section in this.Sections)
             {
-                ExtractSection(File.Create($"{outputDirectory.FullName}/content_{section.Section}.ncch"), section.Section);
+                ExtractContent(File.Create($"{outputDirectory.FullName}/content_{section.Section}.ncch"), section.Section);
             }
         }
 

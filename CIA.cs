@@ -39,88 +39,95 @@ namespace CTR.NET
                 throw new FileNotFoundException($"File at {pathToCIA} was not found.");
             }
 
-            int header = Tools.ReadBytes(pathToCIA, 0x0, 0x4).IntLE();
-
-            if (header.ToString("X4") != "2020")
+            using (FileStream fs = File.OpenRead(pathToCIA))
             {
-                throw new ArgumentException($"File (pathToCIA) is not a CIA, because the header is not 0x2020 (8224).");
-            }
+                byte[] header = fs.ReadBytes(0x20);
 
-            int certChainSize = BitConverter.ToInt32(Tools.ReadBytes(pathToCIA, 0x8, 0xC));
-            int ticketSize = BitConverter.ToInt32(Tools.ReadBytes(pathToCIA, 0xC, 0x10));
-            int tmdSize = BitConverter.ToInt32(Tools.ReadBytes(pathToCIA, 0x10, 0x14));
-            int metaSize = BitConverter.ToInt32(Tools.ReadBytes(pathToCIA, 0x14, 0x18));
-            long contentSize = BitConverter.ToInt64(Tools.ReadBytes(pathToCIA, 0x18, 0x20), 0);
-
-            byte[] contentIndex = Tools.ReadBytes(pathToCIA, 0x20, 0x2020);
-
-            List<int> ActiveContents = new List<int>();
-
-            for (int i = 0; i < contentIndex.Length; i++)
-            {
-                int offset = i * 8;
-                byte current = contentIndex[i];
-
-                for (int j = 7; j > -1; j += -1)
+                if (header.TakeItems(0x0, 0x2).Hex() != "2020")
                 {
-                    if ((current & 1) == 1)
+                    throw new ArgumentException("CIA Header size is not 0x2020");
+                }
+
+                int certChainSize = header.TakeItems(0x8, 0xC).ToInt32();
+                int ticketSize = header.TakeItems(0xC, 0x10).ToInt32();
+                int tmdSize = header.TakeItems(0x10, 0x14).ToInt32();
+                int metaSize = header.TakeItems(0x14, 0x18).ToInt32();
+                long contentSize = header.TakeItems(0x18, 0x20).ToInt64();
+
+                byte[] contentIndex = fs.ReadBytes(0x2000);
+
+                List<int> ActiveContents = new List<int>();
+
+                for (int i = 0; i < contentIndex.Length; i++)
+                {
+                    int offset = i * 8;
+                    byte current = contentIndex[i];
+
+                    for (int j = 7; j > -1; j += -1)
                     {
-                        ActiveContents.Add(offset + j);
+                        if ((current & 1) == 1)
+                        {
+                            ActiveContents.Add(offset + j);
+                        }
+
+                        current >>= 1;
                     }
-
-                    current >>= 1;
                 }
-            }
 
-            int certChainOffset = Tools.RoundUp(header, AlignSize);
-            int ticketOffset = certChainOffset + Tools.RoundUp(certChainSize, AlignSize);
-            int tmdOffset = ticketOffset + Tools.RoundUp(ticketSize, AlignSize);
-            long contentOffset = tmdOffset + Tools.RoundUp(tmdSize, AlignSize);
-            long metaOffset = contentOffset + Tools.RoundUp(contentSize, AlignSize);
+                int certChainOffset = Tools.RoundUp(0x2020, AlignSize);
+                int ticketOffset = certChainOffset + Tools.RoundUp(certChainSize, AlignSize);
+                int tmdOffset = ticketOffset + Tools.RoundUp(ticketSize, AlignSize);
+                long contentOffset = tmdOffset + Tools.RoundUp(tmdSize, AlignSize);
+                long metaOffset = contentOffset + Tools.RoundUp(contentSize, AlignSize);
 
-            List<int> ActiveContentsInTmd = new List<int>();
-            this.ActiveContentsInfo = new List<ContentChunkRecord>();
+                List<int> ActiveContentsInTmd = new List<int>();
+                this.ActiveContentsInfo = new List<ContentChunkRecord>();
 
-            TMDInfo tmdData = TMDInfo.Read(Tools.ReadBytes(pathToCIA, tmdOffset, tmdOffset + tmdSize), true);
-            this.TitleMetadata = tmdData;
+                fs.Seek(tmdOffset, SeekOrigin.Begin);
 
-            foreach (ContentChunkRecord ccr in tmdData.ContentChunkRecords)
-            {
-                if (ActiveContents.Contains(ccr.ContentIndex))
+                TMDInfo tmdData = TMDInfo.Read(fs.ReadBytes(tmdSize), true);
+
+                this.TitleMetadata = tmdData;
+
+                foreach (ContentChunkRecord ccr in tmdData.ContentChunkRecords)
                 {
-                    this.ActiveContentsInfo.Add(ccr);
-                    ActiveContentsInTmd.Add(ccr.ContentIndex);
+                    if (ActiveContents.Contains(ccr.ContentIndex))
+                    {
+                        this.ActiveContentsInfo.Add(ccr);
+                        ActiveContentsInTmd.Add(ccr.ContentIndex);
+                    }
+                }
+
+                ActiveContents.Sort();
+
+                if (!Enumerable.SequenceEqual(ActiveContents, ActiveContentsInTmd))
+                {
+                    throw new ArgumentException("Invalid CIA Detected, contents defined in TMD do not match the contents defined in CIA.");
+                }
+
+                this.ArchiveHeaderInfo = new CIASectionInfo("Archive Header", (int)ContentType.ArchiveHeader, 0x0, 0x2020);
+                this.CertificateChainInfo = new CIASectionInfo("Certificate Chain", (int)ContentType.CertificateChain, certChainOffset, certChainSize);
+                this.TicketInfo = new CIASectionInfo("Ticket", (int)ContentType.Ticket, ticketOffset, ticketSize);
+                this.TitleMetadataInfo = new CIASectionInfo("Title Metadata (TMD)", (int)ContentType.TitleMetadata, tmdOffset, tmdSize);
+                this.ContentInfo = new CIASectionInfo("Contents", (int)ContentType.Contents, contentOffset, contentSize);
+
+                if (metaSize > 0)
+                {
+                    this.MetaInfo = new CIASectionInfo("Meta", (int)ContentType.Meta, metaOffset, metaSize);
+                }
+
+                this.FilePath = pathToCIA;
+                this.Contents = new List<CIASectionInfo>();
+
+                long ncchOffset = this.ContentInfo.Offset;
+
+                foreach (ContentChunkRecord ccr in this.ActiveContentsInfo)
+                {
+                    this.Contents.Add(new CIASectionInfo($"{ccr.ContentIndex:X4}.{ccr.ID}", (int)ContentType.Contents, ncchOffset, ccr.Size));
+                    ncchOffset += ccr.Size;
                 }
             }
 
-            ActiveContents.Sort();
-
-            if (!Enumerable.SequenceEqual(ActiveContents, ActiveContentsInTmd))
-            {
-                throw new ArgumentException("Invalid CIA Detected, contents defined in TMD do not match the contents defined in CIA.");
-            }
-
-            this.ArchiveHeaderInfo = new CIASectionInfo("Archive Header", (int)ContentType.ArchiveHeader, 0x0, header);
-            this.CertificateChainInfo = new CIASectionInfo("Certificate Chain", (int)ContentType.CertificateChain, certChainOffset, certChainSize);
-            this.TicketInfo = new CIASectionInfo("Ticket", (int)ContentType.Ticket, ticketOffset, ticketSize);
-            this.TitleMetadataInfo = new CIASectionInfo("Title Metadata (TMD)", (int)ContentType.TitleMetadata, tmdOffset, tmdSize);
-            this.ContentInfo = new CIASectionInfo("Contents", (int)ContentType.Contents, contentOffset, contentSize);
-
-            if (metaSize > 0)
-            {
-                this.MetaInfo = new CIASectionInfo("Meta", (int)ContentType.Meta, metaOffset, metaSize);
-            }
-
-            this.FilePath = pathToCIA;
-            this.Contents = new List<CIASectionInfo>();
-
-            long ncchOffset = this.ContentInfo.Offset;
-
-            foreach (ContentChunkRecord ccr in this.ActiveContentsInfo)
-            {
-                this.Contents.Add(new CIASectionInfo($"{ccr.ContentIndex:X4}.{ccr.ID}", (int)ContentType.Contents, ncchOffset, ccr.Size));
-                ncchOffset += ccr.Size;
-            }
         }
 
         public void ExtractContent(string ncchIndex, FileStream outputFile)
@@ -161,7 +168,6 @@ namespace CTR.NET
 
         public override string ToString()
         {
-            Console.WriteLine(Size);
             return $"SECTION {SectionName.ToUpper()}:\n\nOffset: 0x{Offset.ToString("X").ToUpper()}-0x{(Offset + Size).ToString("X").ToUpper()}\nSize: {Size} (0x{Size.ToString("X").ToUpper()}) bytes";
         }
     }

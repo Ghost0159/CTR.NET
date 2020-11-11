@@ -122,7 +122,7 @@ namespace CTR.NET
             this.GameRatings.Add(new GameRating(applicationSettings[8], "COB (Australia)"));
             this.GameRatings.Add(new GameRating(applicationSettings[9], "GRB (South Korea)"));
             this.GameRatings.Add(new GameRating(applicationSettings[10], "CGSRR (Taiwan)"));
-            //15
+            
             int regionLockoutRaw = applicationSettings.TakeItems(16, 20).IntLE();
 
             if ((regionLockoutRaw & 0x01) == 1)
