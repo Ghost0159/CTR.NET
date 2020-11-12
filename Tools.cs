@@ -24,37 +24,6 @@ namespace CTR.NET
             return $"{(versionInt >> 10) & 0x3F}.{(versionInt >> 4) & 0x3F}.{versionInt & 0xF}";
         }
 
-        public static string GetVersion(byte[] versionBytes)
-        {
-            if (versionBytes.Length != 2)
-            {
-                throw new ArgumentException("Input byte array was not 2 bytes long.");
-            }
-
-            Array.Reverse(versionBytes);
-
-            int versionInt = ((versionBytes[1] & 0xff) << 8) + (versionBytes[0] & 0xff);
-
-            return $"{(versionInt >> 10) & 0x3F}.{(versionInt >> 4) & 0x3F}.{versionInt & 0xF}";
-        }
-
-        public static byte[] ReadBytes(string pathToFile, int startOffset, int endOffset)
-        {
-            if (!File.Exists(pathToFile))
-            {
-                throw new FileNotFoundException($"File at {pathToFile} was not found.");
-            }
-
-            List<byte> bytes = new List<byte>();
-
-            using (FileStream fs = File.OpenRead(pathToFile))
-            {
-                fs.Seek(startOffset, SeekOrigin.Begin);
-
-                return fs.ReadBytes(endOffset);
-            }
-        }
-
         public static int RoundUp(int offset, int alignment)
         {
             return (int)Math.Ceiling((double)offset / alignment) * alignment;
@@ -74,19 +43,6 @@ namespace CTR.NET
                 hash = sha256.ComputeHash(inputData);
             }
             return hash;
-        }
-
-        public static byte[] HexToBytes(string hex)
-        {
-            int NumberChars = hex.Length;
-            byte[] bytes = new byte[NumberChars / 2];
-
-            for (int i = 0; i < NumberChars; i += 2)
-            {
-                bytes[i / 2] = Convert.ToByte(hex.Substring(i, 2), 16);
-            }
-
-            return bytes;
         }
 
         public static void ExtractFromFile(Stream input, FileStream output, long offset, long size, int bufferSize = 4000000)
@@ -225,15 +181,6 @@ namespace CTR.NET
             return output;
         }
 
-        public static byte[] TakeBytes(this byte[] bytes, int startOffset, int endOffset)
-        {
-            int count = endOffset - startOffset;
-            byte[] output = new byte[count];
-
-            Buffer.BlockCopy(bytes, startOffset, output, 0, count);
-            return output;
-        }
-
         //Linq is slow, imma use this instead because yes
         public static T[] FReverse<T>(this T[] input)
         {
@@ -328,8 +275,6 @@ namespace CTR.NET
             int val = (int)hex;
             return val - (val < 58 ? 48 : (val < 97 ? 55 : 87));
         }
-
-        public static int Int(this bool bl) => (bl) ? 1 : 0;
 
         public static byte[] HashSHA256(this byte[] bytes)
         {

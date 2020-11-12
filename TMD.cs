@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Globalization;
 
 namespace CTR.NET
 {
@@ -280,8 +279,6 @@ namespace CTR.NET
             this.Optional = (flags & 0x4000) > 0;
             this.Shared = (flags & 0x8000) > 0;
         }
-
-        private static bool BoolFromInt(int input) => (input == 0) ? false : true;
 
         public override string ToString() =>
             $"================================\n" +
