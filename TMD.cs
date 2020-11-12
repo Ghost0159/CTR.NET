@@ -66,11 +66,11 @@ namespace CTR.NET
         {
             string output =
                 $"Signature Name: {this.SignatureInfo.Name}\n" +
-                $"Signature Size: {this.SignatureInfo.Size} (0x{Convert.ToString(this.SignatureInfo.Size, 16)}) bytes\n" +
-                $"Signature Padding: {this.SignatureInfo.PaddingSize} (0x{Convert.ToString(this.SignatureInfo.PaddingSize, 16)}) bytes\n" +
+                $"Signature Size: {this.SignatureInfo.Size} (0x{this.SignatureInfo.Size:X}) bytes\n" +
+                $"Signature Padding: {this.SignatureInfo.PaddingSize} (0x{this.SignatureInfo.PaddingSize:X}) bytes\n" +
                 $"Title ID: {this.TitleId.Hex()}\n" +
-                $"Save Data Size: {this.SaveDataSize} (0x{Convert.ToString(this.SaveDataSize, 16)}) bytes\n" +
-                $"SRL Save Data Size: {this.SrlSaveDataSize} (0x{Convert.ToString(this.SrlSaveDataSize, 16)}) bytes\n" +
+                $"Save Data Size: {this.SaveDataSize} (0x{this.SaveDataSize:X}) bytes\n" +
+                $"SRL Save Data Size: {this.SrlSaveDataSize} (0x{this.SrlSaveDataSize:X}) bytes\n" +
                 $"Title Version: {this.TitleVersion} ({this.RawTitleVersion})\n" +
                 $"Amount of contents defined in TMD: {this.ContentCount}\n" +
                 $"Content Info Records Hash: {this.ContentInfoRecordsHash.Hex()}\n" +
@@ -216,9 +216,9 @@ namespace CTR.NET
     public class ContentChunkRecord
     {
         public byte[] Raw { get; private set; }
-        public string ID { get; private set; }
-        public int ContentIndex { get; private set; }
-        public ContentTypeFlags Type { get; private set; }
+        public byte[] ID { get; private set; }
+        public byte[] ContentIndex { get; private set; }
+        public ContentTypeFlags Flags { get; private set; }
         public long Size { get; private set; }
         public byte[] Hash { get; private set; }
 
@@ -226,20 +226,20 @@ namespace CTR.NET
         public ContentChunkRecord(byte[] contentChunk)
         {
             this.Raw = contentChunk;
-            this.ID = contentChunk.TakeItems(0x0, 0x4).Hex();
-            this.ContentIndex = contentChunk.TakeItems(0x4, 0x6).IntBE();
-            this.Type = new ContentTypeFlags(contentChunk.TakeItems(0x6, 0x8).IntBE());
-            this.Size = long.Parse(contentChunk.TakeItems(0x8, 0x10).Hex(), NumberStyles.HexNumber);
+            this.ID = contentChunk.TakeItems(0x0, 0x4);
+            this.ContentIndex = contentChunk.TakeItems(0x4, 0x6);
+            this.Flags = new ContentTypeFlags(contentChunk.TakeItems(0x6, 0x8).IntBE());
+            this.Size = contentChunk.TakeItems(0x8, 0x10).FReverse().ToInt64();
             this.Hash = contentChunk.TakeItems(0x10, 0x30);
         }
 
         public override string ToString() =>
             $"--------------------------------\n" +
-            $"Content Chunk Record - {this.ContentIndex:X4}.{this.ID}:\n\n" +
-            $"ID: {this.ID}\n" +
-            $"Content Index: {this.ContentIndex} ({this.ContentIndex:X4})\n\n" +
-            $"{this.Type}\n\n" +
-            $"Content Size: {this.Size} (0x{Convert.ToString(this.Size, 16).ToUpper()}) bytes\n" +
+            $"Content Chunk Record - {this.ContentIndex.Hex()}.{this.ID.Hex()}:\n\n" +
+            $"ID: {this.ID.Hex()}\n" +
+            $"Content Index: {this.ContentIndex.IntBE()} ({this.ContentIndex.Hex()})\n\n" +
+            $"{this.Flags}\n\n" +
+            $"Content Size: {this.Size} (0x{this.Size:X}) bytes\n" +
             $"Hash: {this.Hash.Hex()}\n" +
             $"--------------------------------";
     }
@@ -256,7 +256,7 @@ namespace CTR.NET
             this.Raw = infoRecord;
             this.IndexOffset = infoRecord.TakeItems(0x0, 0x2).IntBE();
             this.CommandCount = infoRecord.TakeItems(0x2, 0x4).IntBE();
-            this.Hash = infoRecord.TakeItems(0x4, 0x24);   
+            this.Hash = infoRecord.TakeItems(0x4, 0x24);
         }
 
         public override string ToString() => $"Content Info Record:\n\nIndex Offset: {this.IndexOffset}\nCommand Count: {this.CommandCount}\nHash: {this.Hash.Hex()}";

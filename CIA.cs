@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using CTR.NET.Crypto;
 
 namespace CTR.NET
 {
@@ -21,16 +23,14 @@ namespace CTR.NET
 
         public static int AlignSize = 64;
 
-        public CIASectionInfo ArchiveHeaderInfo { get; private set; }
-        public CIASectionInfo CertificateChainInfo { get; private set; }
-        public CIASectionInfo TicketInfo { get; private set; }
-        public CIASectionInfo TitleMetadataInfo { get; private set; }
-        public CIASectionInfo ContentInfo { get; private set; }
-        public CIASectionInfo MetaInfo { get; private set; }
+
         public List<ContentChunkRecord> ActiveContentsInfo { get; private set; }
-        public List<CIASectionInfo> Contents { get; private set; }
-        public TMDInfo TitleMetadata { get; private set; }
+        public CIASections Sections { get; private set; }
+        public TicketInfo TicketData { get; private set; }
+        public TMDInfo TMDData { get; private set; }
         private string FilePath { get; set; }
+
+
 
         public CIAInfo(string pathToCIA)
         {
@@ -85,16 +85,18 @@ namespace CTR.NET
 
                 fs.Seek(tmdOffset, SeekOrigin.Begin);
 
-                TMDInfo tmdData = TMDInfo.Read(fs.ReadBytes(tmdSize), true);
+                this.TMDData = TMDInfo.Read(fs.ReadBytes(tmdSize), true);
 
-                this.TitleMetadata = tmdData;
+                fs.Seek(ticketOffset, SeekOrigin.Begin);
 
-                foreach (ContentChunkRecord ccr in tmdData.ContentChunkRecords)
+                this.TicketData = new TicketInfo(fs.ReadBytes(ticketSize));
+
+                foreach (ContentChunkRecord ccr in this.TMDData.ContentChunkRecords)
                 {
-                    if (ActiveContents.Contains(ccr.ContentIndex))
+                    if (ActiveContents.Contains(ccr.ContentIndex.IntBE()))
                     {
                         this.ActiveContentsInfo.Add(ccr);
-                        ActiveContentsInTmd.Add(ccr.ContentIndex);
+                        ActiveContentsInTmd.Add(ccr.ContentIndex.IntBE());
                     }
                 }
 
@@ -105,49 +107,74 @@ namespace CTR.NET
                     throw new ArgumentException("Invalid CIA Detected, contents defined in TMD do not match the contents defined in CIA.");
                 }
 
-                this.ArchiveHeaderInfo = new CIASectionInfo("Archive Header", (int)ContentType.ArchiveHeader, 0x0, 0x2020);
-                this.CertificateChainInfo = new CIASectionInfo("Certificate Chain", (int)ContentType.CertificateChain, certChainOffset, certChainSize);
-                this.TicketInfo = new CIASectionInfo("Ticket", (int)ContentType.Ticket, ticketOffset, ticketSize);
-                this.TitleMetadataInfo = new CIASectionInfo("Title Metadata (TMD)", (int)ContentType.TitleMetadata, tmdOffset, tmdSize);
-                this.ContentInfo = new CIASectionInfo("Contents", (int)ContentType.Contents, contentOffset, contentSize);
-
-                if (metaSize > 0)
-                {
-                    this.MetaInfo = new CIASectionInfo("Meta", (int)ContentType.Meta, metaOffset, metaSize);
-                }
+                this.Sections = new CIASections(
+                    new CIASectionInfo("Archive Header", (int)ContentType.ArchiveHeader, 0x0, 0x2020),
+                    new CIASectionInfo("Certificate Chain", (int)ContentType.CertificateChain, certChainOffset, certChainSize),
+                    new CIASectionInfo("Ticket", (int)ContentType.Ticket, ticketOffset, ticketSize),
+                    new CIASectionInfo("Title Metadata (TMD)", (int)ContentType.TitleMetadata, tmdOffset, tmdSize),
+                    new CIASectionInfo("Contents", (int)ContentType.Contents, contentOffset, contentSize),
+                    new CIASectionInfo("Meta", (int)ContentType.Meta, metaOffset, metaSize)
+                    );
 
                 this.FilePath = pathToCIA;
-                this.Contents = new List<CIASectionInfo>();
 
-                long ncchOffset = this.ContentInfo.Offset;
-
-                foreach (ContentChunkRecord ccr in this.ActiveContentsInfo)
-                {
-                    this.Contents.Add(new CIASectionInfo($"{ccr.ContentIndex:X4}.{ccr.ID}", (int)ContentType.Contents, ncchOffset, ccr.Size));
-                    ncchOffset += ccr.Size;
-                }
+                long ncchOffset = this.Sections.Contents.Offset;
             }
 
-        }
-
-        public void ExtractContent(string ncchIndex, FileStream outputFile)
-        {
-            if (!this.ActiveContentsInfo.Any(ac => $"{ac.ContentIndex:X4}.{ac.ID}" != ncchIndex))
-            {
-                throw new ArgumentException($"Specified NCCH Index {ncchIndex} does not exist in the current CIA.");
-            }
-
-            CIASectionInfo selectedContent = this.Contents.Find(c => c.SectionName == ncchIndex);
-
-            Tools.ExtractFromFile(new FileStream(this.FilePath, FileMode.Open, FileAccess.Read), outputFile, selectedContent.Offset, selectedContent.Size);
         }
 
         public void ExtractAllContents(DirectoryInfo outputDirectory)
         {
-            foreach (CIASectionInfo content in this.Contents)
+            if (this.ActiveContentsInfo.Any(ac => ac.Flags.Encrypted) && !File.Exists("boot9.bin"))
             {
-                Tools.ExtractFromFile(new FileStream(this.FilePath, FileMode.Open, FileAccess.Read), File.Create($"{outputDirectory.FullName}/{content.SectionName}.ncch"), content.Offset, content.Size);
+                throw new FileNotFoundException("ARM9 BootROM was not found. Please make sure that you have \"boot9.bin\" in the same directory.");
             }
+
+            long offset = this.Sections.Contents.Offset;
+
+            CryptoEngine ce = new CryptoEngine(File.ReadAllBytes("boot9.bin"), false);
+
+            ce.LoadTitleKeyFromTicket(this.TicketData.Raw);
+
+            using (FileStream fs = File.OpenRead(this.FilePath))
+            {
+                for (int i = 0; i < this.ActiveContentsInfo.Count; i++)
+                {
+                    long size = this.ActiveContentsInfo[i].Size;
+
+                    string id = this.ActiveContentsInfo[i].ID.Hex();
+                    string index = this.ActiveContentsInfo[i].ContentIndex.Hex();
+
+                    Tools.ExtractFromFile(fs, File.Create($"{outputDirectory.FullName}/{index}.{id}.ncch"), offset, size);
+
+                    if (this.ActiveContentsInfo[i].Flags.Encrypted)
+                    {
+                        ce.DecryptCIAContent($"{outputDirectory.FullName}/{index}.{id}.ncch", this.ActiveContentsInfo[i]);
+                    }
+
+                    offset += size;
+                }
+            }
+        }
+    }
+
+    public class CIASections
+    {
+        public CIASectionInfo ArchiveHeader { get; protected set; }
+        public CIASectionInfo CertificateChain { get; private set; }
+        public CIASectionInfo Ticket { get; private set; }
+        public CIASectionInfo TMD { get; private set; }
+        public CIASectionInfo Contents { get; private set; }
+        public CIASectionInfo Meta { get; private set; }
+
+        public CIASections(CIASectionInfo archiveHeader, CIASectionInfo certChain, CIASectionInfo ticket, CIASectionInfo tmd, CIASectionInfo contents, CIASectionInfo meta)
+        {
+            this.ArchiveHeader = archiveHeader;
+            this.CertificateChain = certChain;
+            this.Ticket = ticket;
+            this.TMD = tmd;
+            this.Contents = contents;
+            this.Meta = meta;
         }
     }
 

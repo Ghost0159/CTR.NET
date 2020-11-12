@@ -134,12 +134,6 @@ namespace CTR.NET.Crypto
         public Dictionary<int, byte[]> NormalKey { get; set; }
         public bool IsDev { get; set; }
         public bool Boot9KeysAreSet { get; set; }
-        public byte[] Boot9ExtdataOTP { get; set; }
-        public byte[] Boot9ExtdataKeygen { get; set; }
-        public byte[] OTPDeviceID { get; set; }
-        public byte[] OTPKey { get; set; }
-        public byte[] OTPIV { get; set; }
-        public byte[] IDZero { get; set; }
 
         public CryptoEngine(byte[] boot9, bool isDev, bool setupBoot9Keys = true)
         {
@@ -169,7 +163,6 @@ namespace CTR.NET.Crypto
                 SetupKeysFromBoot9(boot9);
             }
         }
-
         public void SetupKeysFromBoot9(byte[] boot9Bytes)
         {
             byte[] usedPartOfBoot9 = boot9Bytes.TakeItems(0x8000, 0x10000);
@@ -187,21 +180,13 @@ namespace CTR.NET.Crypto
             }
 
             int keyblobOffset = 0x5860;
-            int otpKeyOffset = 0x56E0;
 
             if (this.IsDev)
             {
                 keyblobOffset += 0x400;
-                otpKeyOffset += 0x20;
             }
 
-            this.OTPKey = usedPartOfBoot9.TakeItems(otpKeyOffset, otpKeyOffset + 0x10);
-            this.OTPIV = usedPartOfBoot9.TakeItems(otpKeyOffset + 0x10, otpKeyOffset + 0x20);
-
             byte[] keyblob = usedPartOfBoot9.TakeItems(keyblobOffset, keyblobOffset + 0x400);
-
-            this.Boot9ExtdataKeygen = keyblob.TakeItems(0, 0x200);
-            this.Boot9ExtdataOTP = keyblob.TakeItems(0, 0x24);
 
             KeyX[0x2C] = KeyX[0x2D] = KeyX[0x2E] = KeyX[0x2F] = keyblob.TakeItems(0x170, 0x180).ToUnsignedBigInt();
             KeyX[0x30] = KeyX[0x31] = KeyX[0x32] = KeyX[0x33] = keyblob.TakeItems(0x180, 0x190).ToUnsignedBigInt();
@@ -303,6 +288,59 @@ namespace CTR.NET.Crypto
                     }
 
                     SetNormalKey((int)Keyslot.DecryptedTitleKey, ms.ToArray().TakeItems(0, 16));
+                }
+            }
+        }
+
+        public void DecryptCIAContent(string pathToContent, ContentChunkRecord contentRecord)
+        {
+            if (!this.NormalKey.ContainsKey(0x40))
+            {
+                throw new ArgumentException("ERROR: Missing Decrypted Title Key");
+            }
+
+            if (!contentRecord.Flags.Encrypted)
+            {
+                throw new ArgumentException("Content is not Encrypted");
+            }
+
+
+            DecryptContentStream(File.Open($"{pathToContent}", FileMode.Open, FileAccess.ReadWrite), File.Create($"{pathToContent}.temp"), contentRecord);
+
+            File.Move($"{pathToContent}.temp", $"{pathToContent}", true);
+        }
+
+        public void DecryptCIAContent(Stream content, Stream output, ContentChunkRecord contentRecord)
+        {
+            if (!this.NormalKey.ContainsKey(0x40))
+            {
+                throw new ArgumentException("ERROR: Missing Decrypted Title Key");
+            }
+
+            if (!contentRecord.Flags.Encrypted)
+            {
+                throw new ArgumentException("Content is not Encrypted");
+            }
+
+            DecryptContentStream(content, output, contentRecord);
+        }
+
+        private void DecryptContentStream(Stream content, Stream output, ContentChunkRecord contentRecord)
+        {
+            using (content)
+            {
+                using (Aes aes = Aes.Create())
+                {
+                    aes.Key = this.NormalKey[0x40];
+                    aes.IV = contentRecord.ContentIndex.PadRight(0, 16);
+                    aes.Padding = PaddingMode.Zeros;
+                    aes.Mode = CipherMode.CBC;
+
+
+                    using (CryptoStream cs = new CryptoStream(output, aes.CreateDecryptor(), CryptoStreamMode.Write))
+                    {
+                        content.CopyTo(cs);
+                    }
                 }
             }
         }

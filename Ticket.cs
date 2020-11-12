@@ -5,6 +5,7 @@ namespace CTR.NET
 {
     public class TicketInfo
     {
+        public byte[] Raw { get; private set; }
         public Signature SignatureInfo { get; private set; }
         public byte[] SignatureData { get; private set; }
         public string Issuer { get; private set; }
@@ -28,6 +29,8 @@ namespace CTR.NET
 
         public TicketInfo(byte[] ticket)
         {
+            this.Raw = ticket;
+
             using (MemoryStream ms = new MemoryStream(ticket))
             {
                 this.SignatureInfo = Signature.Parse(ms.ReadBytes(0x4));
@@ -47,7 +50,7 @@ namespace CTR.NET
                 this.TicketID = ms.ReadBytes(0x8);
                 this.ConsoleID = ms.ReadBytes(0x4);
                 this.TitleID = ms.ReadBytes(0x8);
-                
+
                 ms.ReadBytes(0x2); //reserved 2
 
                 this.TicketTitleVersion = Tools.GetVersion(ms.ReadBytes(0x2), out int versionInt);
@@ -67,7 +70,7 @@ namespace CTR.NET
                 this.Audit = (byte)ms.ReadByte();
 
                 ms.ReadBytes(0x42); //reserved 6
-                
+
                 this.Limits = ms.ReadBytes(0x40);
                 this.ContentIndex = ms.ReadBytes(ms.Length - ms.Position);
                 this.TicketSize = (int)ms.Length;

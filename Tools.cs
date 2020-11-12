@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
 using System.Security.Cryptography;
+using System.Linq;
 using System.Text;
 
 namespace CTR.NET
@@ -88,25 +89,28 @@ namespace CTR.NET
             return bytes;
         }
 
-        public static void ExtractFromFile(Stream input, FileStream output, long offset, long size, int bufferSize = 20000000)
+        public static void ExtractFromFile(Stream input, FileStream output, long offset, long size, int bufferSize = 4000000)
         {
-            using (input)
+            input.Seek(offset, 0);
+
+            byte[] buffer = new byte[bufferSize];
+
+            while (input.Position < offset + size)
             {
-                input.Seek(offset, 0);
-
-                byte[] buffer = new byte[bufferSize];
-
-                while (input.Position < offset + size)
+                int remaining = bufferSize, bytesRead;
+                while (remaining > 0 && (bytesRead = input.Read(buffer, 0, Math.Min(remaining, bufferSize))) > 0)
                 {
-                    int remaining = bufferSize, bytesRead;
-                    while (remaining > 0 && (bytesRead = input.Read(buffer, 0, Math.Min(remaining, bufferSize))) > 0)
-                    {
-                        remaining -= bytesRead;
-                        output.Write(buffer);
-                    }
+                    remaining -= bytesRead;
+                    output.Write(buffer);
                 }
-                output.Close();
             }
+
+            if (output.Length > size)
+            {
+                output.SetLength(size);
+            }
+
+            output.Close();
         }
 
         public static byte[] HashSHA256Region(Stream input, long offset, long size, int bufferSize = 20000000)
@@ -160,6 +164,15 @@ namespace CTR.NET
         public static int ToInt64(this byte[] b)
         {
             return BitConverter.ToInt32(b);
+        }
+
+        public static byte[] PadRight(this byte[] input, byte padValue, int len)
+        {
+            var temp = Enumerable.Repeat(padValue, len).ToArray();
+            for (var i = 0; i < input.Length; i++)
+                temp[i] = input[i];
+
+            return temp.ToArray();
         }
 
         public static byte[] ReadBytes(this Stream s, long length)
