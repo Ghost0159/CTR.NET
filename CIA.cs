@@ -8,7 +8,7 @@ namespace CTR.NET
 {
     public class CIA : IDisposable
     {
-        public Stream CIAStream { get; private set; }
+        private Stream CIAStream { get; private set; }
         public CIAInfo Info { get; private set; }
 
         public CIA(Stream cia)
