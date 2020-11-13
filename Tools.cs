@@ -45,28 +45,29 @@ namespace CTR.NET
             return hash;
         }
 
-        public static void ExtractFromFile(Stream input, FileStream output, long offset, long size, int bufferSize = 4000000)
+        public static void ExtractFromStreamBuffered(Stream input, Stream output, long offset, long size, int bufferSize = 4000000)
         {
-            input.Seek(offset, 0);
-
-            byte[] buffer = new byte[bufferSize];
-
-            while (input.Position < offset + size)
+            using (output)
             {
-                int remaining = bufferSize, bytesRead;
-                while (remaining > 0 && (bytesRead = input.Read(buffer, 0, Math.Min(remaining, bufferSize))) > 0)
+                input.Seek(offset, 0);
+
+                byte[] buffer = new byte[bufferSize];
+
+                while (input.Position < offset + size)
                 {
-                    remaining -= bytesRead;
-                    output.Write(buffer);
+                    int remaining = bufferSize, bytesRead;
+                    while (remaining > 0 && (bytesRead = input.Read(buffer, 0, Math.Min(remaining, bufferSize))) > 0)
+                    {
+                        remaining -= bytesRead;
+                        output.Write(buffer);
+                    }
+                }
+
+                if (output.Length > size)
+                {
+                    output.SetLength(size);
                 }
             }
-
-            if (output.Length > size)
-            {
-                output.SetLength(size);
-            }
-
-            output.Close();
         }
 
         public static byte[] HashSHA256Region(Stream input, long offset, long size, int bufferSize = 20000000)

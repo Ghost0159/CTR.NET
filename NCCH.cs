@@ -1,20 +1,47 @@
 ﻿using System;
-using System.Globalization;
+using System.Numerics;
 using System.IO;
 using System.Text;
 
 namespace CTR.NET
 {
+    public class NCCH : IDisposable
+    {
+        public NCCHInfo Info { get; private set; }
+        private Stream NCCHStream { get; set; }
+
+        public NCCH(Stream ncchStream)
+        {
+            this.NCCHStream = ncchStream;
+            this.Info = new NCCHInfo(this.NCCHStream);
+        }
+
+        public NCCH(string pathToNcch)
+        {
+            if (!File.Exists(pathToNcch))
+            {
+                throw new FileNotFoundException($"File at {pathToNcch} does not exist.");
+            }
+
+            this.NCCHStream = File.OpenRead(pathToNcch);
+            this.Info = new NCCHInfo(this.NCCHStream);
+        }
+
+        public void Dispose()
+        {
+            this.NCCHStream.Dispose();
+        }
+    }
     public class NCCHInfo
     {
         public string Signature { get; private set; } //hex
-        public string Magic { get; private set; } //UTF-8 string
+        public string Magic { get; private set; } //UTF-8 plaintext
         public long ContentSize { get; private set; } //in media units
         public string TitleID { get; private set; } //LE
-        public string MakerCode { get; private set; } //parse as UTF-8
+        public string MakerCode { get; private set; } //UTF-8 plaintext
         public int VersionNumber { get; private set; }
         public string Version { get; private set; } //LE
-        public string ProgramID { get; private set; }
+        public string ProgramID { get; private set; } //LE
         public string LogoRegionHash { get; private set; } //hex
         public ProductCodeInfo ProductCode { get; private set; } //utf-8 string
         public string ExHeaderHash { get; private set; } //hex
@@ -22,7 +49,7 @@ namespace CTR.NET
         public NCCHFlags Flags { get; private set; } //bytes
         public long PlainRegionOffset { get; private set; } //in media units
         public long PlainRegionSize { get; private set; } //in media units
-        public string PlainRegion { get; private set; }
+        public string PlainRegion { get; private set; } //plaintext
         public long LogoRegionOffset { get; private set; } //in media units
         public long LogoRegionSize { get; private set; } //in media units
         public long ExeFSOffset { get; private set; } //in media units
@@ -33,7 +60,6 @@ namespace CTR.NET
         public long RomFSHashRegionSize { get; private set; } //in media units
         public string ExeFSSuperBlockHash { get; private set; } //hex
         public string RomFSSuperBlockHash { get; private set; } //hex
-
         public NCCHInfo(Stream ncch)
         {
             byte[] ncchHeader = ncch.ReadBytes(512);
@@ -54,12 +80,9 @@ namespace CTR.NET
             this.PlainRegionOffset = ncchHeader.TakeItems(0x190, 0x194).IntLE() * 0x200;
             this.PlainRegionSize = ncchHeader.TakeItems(0x194, 0x198).IntLE() * 0x200;
 
-            using (ncch)
-            {
-                ncch.Seek(PlainRegionOffset, 0);
-                this.PlainRegion = ncch.ReadBytes(this.PlainRegionSize).Decode(Encoding.UTF8).Replace("\0", "\n").Trim();
-            }
+            ncch.Seek(PlainRegionOffset, 0);
 
+            this.PlainRegion = ncch.ReadBytes(this.PlainRegionSize).Decode(Encoding.UTF8).Replace("\0", "\n").Trim();
             this.LogoRegionOffset = ncchHeader.TakeItems(0x198, 0x19C).IntLE() * 0x200;
             this.LogoRegionSize = ncchHeader.TakeItems(0x19C, 0x1A0).IntLE() * 0x200;
             this.ExeFSOffset = ncchHeader.TakeItems(0x1A0, 0x1A4).IntLE() * 0x200;
@@ -70,6 +93,8 @@ namespace CTR.NET
             this.RomFSHashRegionSize = ncchHeader.TakeItems(0x1B8, 0x1BC).IntLE() * 0x200;
             this.ExeFSSuperBlockHash = ncchHeader.TakeItems(0x1C0, 0x1E0).Hex();
             this.RomFSSuperBlockHash = ncchHeader.TakeItems(0x1E0, 0x200).Hex();
+
+            ncch.Seek(0, SeekOrigin.Begin);
         }
 
         public override string ToString()
@@ -111,6 +136,8 @@ namespace CTR.NET
 
         public ProductCodeInfo(string productCode)
         {
+            this.ProductCode = productCode;
+
             if (productCode.Split("-").Length < 3)
             {
                 this.Console = "Unrecognized Product Code.";
@@ -119,7 +146,6 @@ namespace CTR.NET
             }
             else
             {
-                this.ProductCode = productCode;
                 this.Console = productCode.Split("-")[0] switch
                 {
                     "KTR" => "New Nintendo 3DS (KTR)",
@@ -169,22 +195,62 @@ namespace CTR.NET
         }
     }
 
+    public enum ContentPlatform
+    {
+        CTR_Old3DS = 1,
+        SNAKE_New3DS = 2
+    }
+
+    public enum NCCHSection
+    {
+        ExHeader = 1,
+        ExeFS = 2,
+        RomFS = 3,
+
+        Header = 4,
+        Logo = 5,
+        PlainRegion = 6
+    }
+
+    public class NCCHRegion
+    {
+        public NCCHSection Section { get; private set; }
+        public long Offset { get; private set; }
+        public long Size { get; private set; }
+        public BigInteger IV { get; private set; }
+
+        public NCCHRegion(NCCHSection section, long offset, long size, BigInteger iv)
+        {
+            this.Section = section;
+            this.Offset = offset;
+            this.Size = size;
+            this.IV = iv;
+        }
+    }
     public class NCCHFlags
     {
-        public enum ContentPlatform
-        {
-            CTR_Old3DS = 1,
-            SNAKE_New3DS = 2
-        }
-
         public int CryptoMethod { get; private set; }
         public ContentPlatform Platform { get; private set; }
-        public string ContentType { get; private set; }
+        public bool IsExecutable { get; private set; }
+        public bool UsesFixedKey { get; private set; }
+        public bool HasRomFS { get; private set; }
+        public bool UsesEncryption { get; private set; }
         public uint ContentUnitSize { get; private set; }
         public bool IsEncrypted { get; private set; }
+        public bool UsesSeed { get; private set; }
+        public string ContentType { get; private set; }
 
         public NCCHFlags(byte[] ncchFlags)
         {
+            this.CryptoMethod = ncchFlags[3];
+            this.Platform = (ContentPlatform)ncchFlags[4];
+            this.IsExecutable = (ncchFlags[5] & 0x2) > 0;
+            this.UsesFixedKey = (ncchFlags[7] & 0x1) > 0;
+            this.HasRomFS = !((ncchFlags[7] & 0x2) > 0);
+            this.UsesEncryption = !((ncchFlags[7] & 0x4) > 0);
+            this.UsesSeed = (ncchFlags[7] & 0x20) > 0;
+            this.ContentUnitSize = (uint)0x200 * 2 ^ ncchFlags[6];
+
             this.CryptoMethod = ncchFlags[3];
             this.Platform = (ContentPlatform)ncchFlags[4];
 
@@ -213,8 +279,6 @@ namespace CTR.NET
                 this.ContentType = "Trial";
             }
 
-            this.ContentUnitSize = (uint)0x200 * 2 ^ ncchFlags[6];
-            this.IsEncrypted = (ncchFlags[7] & 0x4) == 0 ? true : true;
         }
 
         public override string ToString()
@@ -224,7 +288,7 @@ namespace CTR.NET
                 $"Content Platform: {Enum.GetName(typeof(ContentPlatform), this.Platform)}\n" +
                 $"Content Unit Size: {this.ContentUnitSize} (0x{this.ContentUnitSize:X}) bytes\n" +
                 $"Content Type: {this.ContentType}\n" +
-                $"Encrypted: {this.IsEncrypted.YesNo()}";
+                $"Encrypted: {this.UsesEncryption}";
         }
     }
 }
