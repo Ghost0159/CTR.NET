@@ -87,7 +87,9 @@ namespace CTR.NET
         {
             byte[] header = cia.ReadBytes(0x20);
 
-            if (header.TakeItems(0x0, 0x2).Hex() != "2020")
+            short archiveHeaderSize = header.TakeItems(0x0, 0x2).ToInt16();
+
+            if (archiveHeaderSize != 0x2020)
             {
                 throw new ArgumentException("CIA Header size is not 0x2020");
             }
@@ -118,7 +120,7 @@ namespace CTR.NET
                 }
             }
 
-            int certChainOffset = Tools.RoundUp(0x2020, AlignSize);
+            int certChainOffset = Tools.RoundUp(archiveHeaderSize, AlignSize);
             int ticketOffset = certChainOffset + Tools.RoundUp(certChainSize, AlignSize);
             int tmdOffset = ticketOffset + Tools.RoundUp(ticketSize, AlignSize);
             long contentOffset = tmdOffset + Tools.RoundUp(tmdSize, AlignSize);

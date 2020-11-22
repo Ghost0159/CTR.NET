@@ -50,7 +50,7 @@ namespace CTR.NET
         public byte CaCrlVersion { get; private set; }
         public byte SignerCrlVersion { get; private set; }
         public long SystemVersion { get; private set; }
-        public byte[] TitleType { get; private set; }
+        public int TitleType { get; private set; }
         public byte[] GroupId { get; private set; }
         public byte SrlFlag { get; private set; }
         public byte[] AccessRights { get; private set; }
@@ -76,6 +76,7 @@ namespace CTR.NET
                 $"Signature Size: {this.SignatureInfo.Size} (0x{this.SignatureInfo.Size:X}) bytes\n" +
                 $"Signature Padding: {this.SignatureInfo.PaddingSize} (0x{this.SignatureInfo.PaddingSize:X}) bytes\n" +
                 $"Title ID: {this.TitleID.Hex()}\n" +
+                $"Title Type: {this.TitleType:X8}\n" +
                 $"Save Data Size: {this.SaveDataSize} (0x{this.SaveDataSize:X}) bytes\n" +
                 $"SRL Save Data Size: {this.SrlSaveDataSize} (0x{this.SrlSaveDataSize:X}) bytes\n" +
                 $"Title Version: {this.TitleVersion} ({this.RawTitleVersion})\n" +
@@ -210,7 +211,7 @@ namespace CTR.NET
             this.CaCrlVersion = this.Header[0x41];
             this.SignerCrlVersion = this.Header[0x42];
             this.SystemVersion = this.Header.TakeItems(0x44, 0x4C).ToInt64(true);
-            this.TitleType = this.Header.TakeItems(0x54, 0x58);
+            this.TitleType = this.Header.TakeItems(0x54, 0x58).ToInt32(true);
             this.GroupId = this.Header.TakeItems(0x58, 0x5A);
             this.SrlFlag = this.Header[0x66];
             this.AccessRights = this.Header.TakeItems(0x98, 0x9C);
@@ -267,33 +268,33 @@ namespace CTR.NET
         public override string ToString() => $"Content Info Record:\n\nIndex Offset: {this.IndexOffset}\nCommand Count: {this.CommandCount}\nHash: {this.Hash.Hex()}";
     }
 
-    public class ContentTypeFlags
+public class ContentTypeFlags
+{
+    public short Raw { get; private set; }
+    public bool Encrypted { get; private set; }
+    public bool IsDisc { get; private set; }
+    public bool Cfm { get; private set; }
+    public bool Optional { get; private set; }
+    public bool Shared { get; private set; }
+
+    public ContentTypeFlags(short flags)
     {
-        public short Raw { get; private set; }
-        public bool Encrypted { get; private set; }
-        public bool IsDisc { get; private set; }
-        public bool Cfm { get; private set; }
-        public bool Optional { get; private set; }
-        public bool Shared { get; private set; }
-
-        public ContentTypeFlags(short flags)
-        {
-            this.Raw = flags;
-            this.Encrypted = (flags & 1) > 0;
-            this.IsDisc = (flags & 2) > 0;
-            this.Cfm = (flags & 4) > 0;
-            this.Optional = (flags & 0x4000) > 0;
-            this.Shared = (flags & 0x8000) > 0;
-        }
-
-        public override string ToString() =>
-            $"================================\n" +
-            $"Content Type Flags:\n\n" +
-            $"Encrypted: {this.Encrypted}\n" +
-            $"Is Disc: {this.IsDisc}\n" +
-            $"CFM: {this.Cfm}\n" +
-            $"Optional: {this.Optional}\n" +
-            $"Shared: {this.Shared}\n" +
-            $"================================";
+        this.Raw = flags;
+        this.Encrypted = (flags & 1) > 0;
+        this.IsDisc = (flags & 2) > 0;
+        this.Cfm = (flags & 4) > 0;
+        this.Optional = (flags & 0x4000) > 0;
+        this.Shared = (flags & 0x8000) > 0;
     }
+
+    public override string ToString() =>
+        $"================================\n" +
+        $"Content Type Flags:\n\n" +
+        $"Encrypted: {this.Encrypted}\n" +
+        $"Is Disc: {this.IsDisc}\n" +
+        $"CFM: {this.Cfm}\n" +
+        $"Optional: {this.Optional}\n" +
+        $"Shared: {this.Shared}\n" +
+        $"================================";
+}
 }

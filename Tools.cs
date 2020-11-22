@@ -109,6 +109,7 @@ namespace CTR.NET
 
             return BitConverter.ToInt64(bytes, 0);
         }
+
         public static Int32 ToInt32(this byte[] bytes, bool isBigEndian = false)
         {
             if (isBigEndian)
@@ -133,6 +134,45 @@ namespace CTR.NET
             }
 
             return BitConverter.ToInt16(bytes, 0);
+        }
+
+        public static UInt64 ToUInt64(this byte[] bytes, bool isBigEndian = false)
+        {
+            if (isBigEndian)
+            {
+                if (BitConverter.IsLittleEndian)
+                {
+                    Array.Reverse(bytes);
+                }
+            }
+
+            return BitConverter.ToUInt64(bytes, 0);
+        }
+        
+        public static UInt32 ToUInt32(this byte[] bytes, bool isBigEndian = false)
+        {
+            if (isBigEndian)
+            {
+                if (BitConverter.IsLittleEndian)
+                {
+                    Array.Reverse(bytes);
+                }
+            }
+
+            return BitConverter.ToUInt32(bytes, 0);
+        }
+
+        public static UInt16 ToUInt16(this byte[] bytes, bool isBigEndian = false)
+        {
+            if (isBigEndian)
+            {
+                if (BitConverter.IsLittleEndian)
+                {
+                    Array.Reverse(bytes);
+                }
+            }
+
+            return BitConverter.ToUInt16(bytes, 0);
         }
 
         public static float ToFloat(this byte[] bytes, bool isBigEndian = false)
@@ -316,5 +356,15 @@ namespace CTR.NET
                 ? new BigInteger(bigIntBytes.FReverse().MergeWith(new byte[] { 0 }))
                 : new BigInteger(bigIntBytes.MergeWith(new byte[] { 0 }));
         }
+
+        public static bool IsEmpty(this DirectoryInfo dir)
+        {
+            if (!((dir.GetFiles().Length == 0) && (dir.GetDirectories().Length == 0)))
+            {
+                return false;
+            }
+            
+            return true;
+        }
     }
-}
+}   
