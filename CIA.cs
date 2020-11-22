@@ -8,7 +8,7 @@ namespace CTR.NET
 {
     public class CIA : IDisposable
     {
-        private Stream CIAStream { get; private set; }
+        private Stream CIAStream { get; set; }
         public CIAInfo Info { get; private set; }
 
         public CIA(Stream cia)
@@ -42,8 +42,8 @@ namespace CTR.NET
             for (int i = 0; i < this.Info.ActiveContentsInfo.Count; i++)
             {
                 long size = this.Info.ActiveContentsInfo[i].Size;
-                string id = this.Info.ActiveContentsInfo[i].ID.Hex();
-                string index = this.Info.ActiveContentsInfo[i].ContentIndex.Hex();
+                string id = this.Info.ActiveContentsInfo[i].ID.ToString("X8");
+                string index = this.Info.ActiveContentsInfo[i].ContentIndex.ToString("X4");
 
                 Tools.ExtractFromStreamBuffered(this.CIAStream, File.Create($"{outputDirectory.FullName}/{index}.{id}.ncch"), offset, size);
 
@@ -80,7 +80,7 @@ namespace CTR.NET
         public List<ContentChunkRecord> ActiveContentsInfo { get; private set; }
         public CIASections Sections { get; private set; }
         public TicketInfo TicketData { get; private set; }
-        public TMDInfo TMDData { get; private set; }
+        public TMD TMD { get; private set; }
         private string FilePath { get; set; }
 
         public CIAInfo(Stream cia)
@@ -100,7 +100,7 @@ namespace CTR.NET
 
             byte[] contentIndex = cia.ReadBytes(0x2000);
 
-            List<int> ActiveContents = new List<int>();
+            List<short> ActiveContents = new List<short>();
 
             for (int i = 0; i < contentIndex.Length; i++)
             {
@@ -111,7 +111,7 @@ namespace CTR.NET
                 {
                     if ((current & 1) == 1)
                     {
-                        ActiveContents.Add(offset + j);
+                        ActiveContents.Add(Convert.ToInt16(offset + j));
                     }
 
                     current >>= 1;
@@ -124,23 +124,23 @@ namespace CTR.NET
             long contentOffset = tmdOffset + Tools.RoundUp(tmdSize, AlignSize);
             long metaOffset = contentOffset + Tools.RoundUp(contentSize, AlignSize);
 
-            List<int> ActiveContentsInTmd = new List<int>();
+            List<short> ActiveContentsInTmd = new List<short>();
             this.ActiveContentsInfo = new List<ContentChunkRecord>();
 
             cia.Seek(tmdOffset, SeekOrigin.Begin);
 
-            this.TMDData = TMDInfo.Read(cia.ReadBytes(tmdSize), true);
+            this.TMD = new TMD(cia.ReadBytes(tmdSize));
 
             cia.Seek(ticketOffset, SeekOrigin.Begin);
 
             this.TicketData = new TicketInfo(cia.ReadBytes(ticketSize));
 
-            foreach (ContentChunkRecord ccr in this.TMDData.ContentChunkRecords)
+            foreach (ContentChunkRecord ccr in this.TMD.Info.ContentChunkRecords)
             {
-                if (ActiveContents.Contains(ccr.ContentIndex.IntBE()))
+                if (ActiveContents.Contains(ccr.ContentIndex))
                 {
                     this.ActiveContentsInfo.Add(ccr);
-                    ActiveContentsInTmd.Add(ccr.ContentIndex.IntBE());
+                    ActiveContentsInTmd.Add(ccr.ContentIndex);
                 }
             }
 

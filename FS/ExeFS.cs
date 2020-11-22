@@ -70,7 +70,7 @@ namespace CTR.NET.FS
 
                 string name = rawEntry.TakeItems(0x0, 0x8).Decode(Encoding.ASCII).Replace("\0", "");
 
-                this.Entries[name] = new ExeFSEntry(name, rawEntry.TakeItems(0x8, 0xC).IntLE() + 0x200, rawEntry.TakeItems(0xC, 0x10).IntLE(), rawHash);
+                this.Entries[name] = new ExeFSEntry(name, rawEntry.TakeItems(0x8, 0xC).ToInt64() + 0x200, rawEntry.TakeItems(0xC, 0x10).ToInt64(), rawHash);
 
                 if ((this.Entries[name].Offset % 0x200) > 0)
                 {

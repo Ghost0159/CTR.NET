@@ -18,7 +18,7 @@ namespace CTR.NET
         public byte[] ConsoleID { get; private set; }
         public byte[] TitleID { get; private set; }
         public string TicketTitleVersion { get; private set; }
-        public int TicketTitleVersionNumber { get; private set; }
+        public short TicketTitleVersionNumber { get; private set; }
         public byte LicenseType { get; private set; }
         public byte CommonKeyYIndex { get; private set; }
         public byte[] EShopAccountID { get; private set; }
@@ -53,7 +53,7 @@ namespace CTR.NET
 
                 ms.ReadBytes(0x2); //reserved 2
 
-                this.TicketTitleVersion = Tools.GetVersion(ms.ReadBytes(0x2), out int versionInt);
+                this.TicketTitleVersion = Tools.GetVersion(ms.ReadBytes(0x2), out short versionInt);
                 this.TicketTitleVersionNumber = versionInt;
 
                 ms.ReadBytes(0x8); //reserved 3

@@ -330,7 +330,7 @@ namespace CTR.NET.Crypto
                 using (Aes aes = Aes.Create())
                 {
                     aes.Key = this.NormalKey[0x40];
-                    aes.IV = contentRecord.ContentIndex.PadRight(0, 16);
+                    aes.IV = BitConverter.GetBytes(contentRecord.ContentIndex).PadRight(0, 16);
                     aes.Padding = PaddingMode.Zeros;
                     aes.Mode = CipherMode.CBC;
 

@@ -10,16 +10,14 @@ namespace CTR.NET
 {
     public static class Tools
     {
-        public static string GetVersion(byte[] versionBytes, out int versionInt)
+        public static string GetVersion(byte[] versionBytes, out short versionInt)
         {
             if (versionBytes.Length != 2)
             {
                 throw new ArgumentException("Input byte array was not 2 bytes long.");
             }
 
-            Array.Reverse(versionBytes);
-
-            versionInt = ((versionBytes[1] & 0xff) << 8) + (versionBytes[0] & 0xff);
+            versionInt = versionBytes.ToInt16();
 
             return $"{(versionInt >> 10) & 0x3F}.{(versionInt >> 4) & 0x3F}.{versionInt & 0xF}";
         }
@@ -99,28 +97,55 @@ namespace CTR.NET
 
     public static class ExtensionMethods
     {
-        public static int IntLE(this byte[] data) => (data[3] << 24) | (data[2] << 16) | (data[1] << 8) | data[0];
-
-        public static int IntBE(this byte[] data)
+        public static Int64 ToInt64(this byte[] bytes, bool isBigEndian = false)
         {
-            if (data.Length < 4)
+            if (isBigEndian)
             {
-                return (data[0] << 8) | data[1];
+                if (BitConverter.IsLittleEndian)
+                {
+                    Array.Reverse(bytes);
+                }
             }
-            else
+
+            return BitConverter.ToInt64(bytes, 0);
+        }
+        public static Int32 ToInt32(this byte[] bytes, bool isBigEndian = false)
+        {
+            if (isBigEndian)
             {
-                return (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
+                if (BitConverter.IsLittleEndian)
+                {
+                    Array.Reverse(bytes);
+                }
             }
+
+            return BitConverter.ToInt32(bytes, 0);
         }
 
-        public static int ToInt32(this byte[] b)
+        public static Int16 ToInt16(this byte[] bytes, bool isBigEndian = false)
         {
-            return BitConverter.ToInt32(b);
+            if (isBigEndian)
+            {
+                if (BitConverter.IsLittleEndian)
+                {
+                    Array.Reverse(bytes);
+                }
+            }
+
+            return BitConverter.ToInt16(bytes, 0);
         }
 
-        public static int ToInt64(this byte[] b)
+        public static float ToFloat(this byte[] bytes, bool isBigEndian = false)
         {
-            return BitConverter.ToInt32(b);
+            if (isBigEndian)
+            {
+                if (BitConverter.IsLittleEndian)
+                {
+                    Array.Reverse(bytes);
+                }
+            }
+
+            return BitConverter.ToSingle(bytes, 0);
         }
 
         public static byte[] PadRight(this byte[] input, byte padValue, int len)

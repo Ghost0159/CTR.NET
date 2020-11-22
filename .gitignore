@@ -4,3 +4,5 @@
 /obj/*
 /pyctr/*
 TWL.cs
+RomFS.cs
+

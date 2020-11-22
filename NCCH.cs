@@ -34,17 +34,17 @@ namespace CTR.NET
     }
     public class NCCHInfo
     {
-        public string Signature { get; private set; } //hex
+        public byte[] Signature { get; private set; } //hex
         public string Magic { get; private set; } //UTF-8 plaintext
         public long ContentSize { get; private set; } //in media units
-        public string TitleID { get; private set; } //LE
+        public byte[] TitleID { get; private set; } //LE
         public string MakerCode { get; private set; } //UTF-8 plaintext
-        public int VersionNumber { get; private set; }
-        public string Version { get; private set; } //LE
-        public string ProgramID { get; private set; } //LE
-        public string LogoRegionHash { get; private set; } //hex
+        public short VersionNumber { get; private set; } //LE
+        public string Version { get; private set; } 
+        public byte[] ProgramID { get; private set; } //LE
+        public byte[] LogoRegionHash { get; private set; } //hex
         public ProductCodeInfo ProductCode { get; private set; } //utf-8 string
-        public string ExHeaderHash { get; private set; } //hex
+        public byte[] ExHeaderHash { get; private set; } //hex
         public long ExHeaderSize { get; private set; } //bytes
         public NCCHFlags Flags { get; private set; } //bytes
         public long PlainRegionOffset { get; private set; } //in media units
@@ -58,41 +58,41 @@ namespace CTR.NET
         public long RomFSOffset { get; private set; } //in media units
         public long RomFSSize { get; private set; } // in media units
         public long RomFSHashRegionSize { get; private set; } //in media units
-        public string ExeFSSuperBlockHash { get; private set; } //hex
-        public string RomFSSuperBlockHash { get; private set; } //hex
+        public byte[] ExeFSSuperBlockHash { get; private set; } //hex
+        public byte[] RomFSSuperBlockHash { get; private set; } //hex
         public NCCHInfo(Stream ncch)
         {
             byte[] ncchHeader = ncch.ReadBytes(512);
 
-            this.Signature = ncchHeader.TakeItems(0x0, 0x100).Hex();
+            this.Signature = ncchHeader.TakeItems(0x0, 0x100);
             this.Magic = ncchHeader.TakeItems(0x100, 0x104).Decode(Encoding.UTF8);
-            this.ContentSize = ncchHeader.TakeItems(0x104, 0x108).IntLE() * 0x200;
-            this.TitleID = ncchHeader.TakeItems(0x108, 0x110).Hex(true);
+            this.ContentSize = ncchHeader.TakeItems(0x104, 0x108).ToInt32() * 0x200;
+            this.TitleID = ncchHeader.TakeItems(0x108, 0x110);
             this.MakerCode = $"{ncchHeader.TakeItems(0x110, 0x112).Hex()} (\"{ncchHeader.TakeItems(0x110, 0x112).Decode(Encoding.UTF8)}\")";
-            this.Version = Tools.GetVersion(ncchHeader.TakeItems(0x112, 0x114), out int versionNumber);
+            this.Version = Tools.GetVersion(ncchHeader.TakeItems(0x112, 0x114), out short versionNumber);
             this.VersionNumber = versionNumber;
-            this.ProgramID = ncchHeader.TakeItems(0x118, 0x120).Hex(true);
-            this.LogoRegionHash = ncchHeader.TakeItems(0x130, 0x150).Hex();
+            this.ProgramID = ncchHeader.TakeItems(0x118, 0x120);
+            this.LogoRegionHash = ncchHeader.TakeItems(0x130, 0x150);
             this.ProductCode = new ProductCodeInfo(ncchHeader.TakeItems(0x150, 0x160).Decode(Encoding.UTF8));
-            this.ExHeaderHash = ncchHeader.TakeItems(0x160, 0x180).Hex();
-            this.ExHeaderSize = ncchHeader.TakeItems(0x180, 0x184).IntLE();
+            this.ExHeaderHash = ncchHeader.TakeItems(0x160, 0x180);
+            this.ExHeaderSize = ncchHeader.TakeItems(0x180, 0x184).ToInt32();
             this.Flags = new NCCHFlags(ncchHeader.TakeItems(0x188, 0x190));
-            this.PlainRegionOffset = ncchHeader.TakeItems(0x190, 0x194).IntLE() * 0x200;
-            this.PlainRegionSize = ncchHeader.TakeItems(0x194, 0x198).IntLE() * 0x200;
+            this.PlainRegionOffset = ncchHeader.TakeItems(0x190, 0x194).ToInt32() * 0x200;
+            this.PlainRegionSize = ncchHeader.TakeItems(0x194, 0x198).ToInt32() * 0x200;
 
             ncch.Seek(PlainRegionOffset, 0);
 
             this.PlainRegion = ncch.ReadBytes(this.PlainRegionSize).Decode(Encoding.UTF8).Replace("\0", "\n").Trim();
-            this.LogoRegionOffset = ncchHeader.TakeItems(0x198, 0x19C).IntLE() * 0x200;
-            this.LogoRegionSize = ncchHeader.TakeItems(0x19C, 0x1A0).IntLE() * 0x200;
-            this.ExeFSOffset = ncchHeader.TakeItems(0x1A0, 0x1A4).IntLE() * 0x200;
-            this.ExeFSSize = ncchHeader.TakeItems(0x1A4, 0x1A8).IntLE() * 0x200;
-            this.ExeFSHashRegionSize = ncchHeader.TakeItems(0x1A8, 0x1AC).IntLE() * 0x200;
-            this.RomFSOffset = ncchHeader.TakeItems(0x1B0, 0x1B4).IntLE() * 0x200;
-            this.RomFSSize = ncchHeader.TakeItems(0x1B4, 0x1B8).IntLE() * 0x200;
-            this.RomFSHashRegionSize = ncchHeader.TakeItems(0x1B8, 0x1BC).IntLE() * 0x200;
-            this.ExeFSSuperBlockHash = ncchHeader.TakeItems(0x1C0, 0x1E0).Hex();
-            this.RomFSSuperBlockHash = ncchHeader.TakeItems(0x1E0, 0x200).Hex();
+            this.LogoRegionOffset = ncchHeader.TakeItems(0x198, 0x19C).ToInt32() * 0x200;
+            this.LogoRegionSize = ncchHeader.TakeItems(0x19C, 0x1A0).ToInt32() * 0x200;
+            this.ExeFSOffset = ncchHeader.TakeItems(0x1A0, 0x1A4).ToInt32() * 0x200;
+            this.ExeFSSize = ncchHeader.TakeItems(0x1A4, 0x1A8).ToInt32() * 0x200;
+            this.ExeFSHashRegionSize = ncchHeader.TakeItems(0x1A8, 0x1AC).ToInt32() * 0x200;
+            this.RomFSOffset = ncchHeader.TakeItems(0x1B0, 0x1B4).ToInt32() * 0x200;
+            this.RomFSSize = ncchHeader.TakeItems(0x1B4, 0x1B8).ToInt32() * 0x200;
+            this.RomFSHashRegionSize = ncchHeader.TakeItems(0x1B8, 0x1BC).ToInt32() * 0x200;
+            this.ExeFSSuperBlockHash = ncchHeader.TakeItems(0x1C0, 0x1E0);
+            this.RomFSSuperBlockHash = ncchHeader.TakeItems(0x1E0, 0x200);
 
             ncch.Seek(0, SeekOrigin.Begin);
         }

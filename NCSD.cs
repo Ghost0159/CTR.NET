@@ -89,8 +89,8 @@ namespace CTR.NET
             for (int i = 0; i < range.Length; i++)
             {
                 byte[] partInfo = partRaw.TakeItems(range[i], range[i] + 8);
-                long partOffset = (long)partInfo.TakeItems(0x0, 0x4).IntLE() * (long)NCSDMediaUnit;
-                long partSize = (long)partInfo.TakeItems(0x4, 0x8).IntLE() * (long)NCSDMediaUnit;
+                long partOffset = (long)partInfo.TakeItems(0x0, 0x4).ToInt32() * (long)NCSDMediaUnit;
+                long partSize = (long)partInfo.TakeItems(0x4, 0x8).ToInt32() * (long)NCSDMediaUnit;
 
                 if (partOffset > 0)
                 {

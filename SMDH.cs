@@ -23,14 +23,14 @@ namespace CTR.NET
 
         public string Magic { get; private set; }
         public string Version { get; private set; }
-        public int VersionNumber { get; private set; }
+        public short VersionNumber { get; private set; }
         public List<SMDHTitleNameStructure> TitleNames { get; private set; }
         public SMDHApplicationSettings ApplicationSettings { get; private set; }
 
         public SMDHInfo(byte[] smdhData)
         {
             this.Magic = smdhData.TakeItems(0x0, 0x4).Decode(Encoding.UTF8);
-            this.Version = Tools.GetVersion(smdhData.TakeItems(0x4, 0x6), out int versionInt);
+            this.Version = Tools.GetVersion(smdhData.TakeItems(0x4, 0x6), out short versionInt);
             this.VersionNumber = versionInt;
 
             byte[] nameStructuresRaw = smdhData.TakeItems(0x8, 0x2000);
@@ -103,13 +103,13 @@ namespace CTR.NET
     {
         public List<GameRating> GameRatings { get; private set; } = new List<GameRating>();
         public string RegionLockout { get; private set; }
-        public string MatchmakerID { get; private set; }
-        public string MatchmakerBitID { get; private set; }
+        public int MatchmakerID { get; private set; }
+        public int MatchmakerBitID { get; private set; }
         public SMDHFlags Flags { get; private set; }
         public string EulaVersion { get; private set; }
-        public int EulaVersionNumber { get; private set; }
-        public string OptionalAnimationDefaultFrame { get; private set; }
-        public string CEC_StreePassID { get; private set; }
+        public short EulaVersionNumber { get; private set; }
+        public float OptionalAnimationDefaultFrame { get; private set; }
+        public int CEC_StreetPassID { get; private set; }
 
         public SMDHApplicationSettings(byte[] applicationSettings)
         {
@@ -123,7 +123,7 @@ namespace CTR.NET
             this.GameRatings.Add(new GameRating(applicationSettings[9], "GRB (South Korea)"));
             this.GameRatings.Add(new GameRating(applicationSettings[10], "CGSRR (Taiwan)"));
             
-            int regionLockoutRaw = applicationSettings.TakeItems(16, 20).IntLE();
+            int regionLockoutRaw = applicationSettings.TakeItems(16, 20).ToInt32();
 
             if ((regionLockoutRaw & 0x01) == 1)
             {
@@ -158,44 +158,36 @@ namespace CTR.NET
                 this.RegionLockout = "Region Free (RF)";
             }
 
-            this.MatchmakerID = applicationSettings.TakeItems(20, 24).Hex();
-            this.MatchmakerBitID = applicationSettings.TakeItems(24, 32).Hex();
-            this.Flags = new SMDHFlags(applicationSettings.TakeItems(32, 36).IntLE());
-            this.EulaVersion = Tools.GetVersion(applicationSettings.TakeItems(36, 38), out int versionNumber);
+            this.MatchmakerID = applicationSettings.TakeItems(20, 24).ToInt32();
+            this.MatchmakerBitID = applicationSettings.TakeItems(24, 32).ToInt32();
+            this.Flags = new SMDHFlags(applicationSettings.TakeItems(32, 36).ToInt32());
+            this.EulaVersion = Tools.GetVersion(applicationSettings.TakeItems(36, 38), out short versionNumber);
             this.EulaVersionNumber = versionNumber;
-            this.OptionalAnimationDefaultFrame = applicationSettings.TakeItems(40, 44).Hex();
-            this.CEC_StreePassID = applicationSettings.TakeItems(44, 48).IntLE().ToString();
+            this.OptionalAnimationDefaultFrame = applicationSettings.TakeItems(40, 44).ToFloat();
+            this.CEC_StreetPassID = applicationSettings.TakeItems(44, 48).ToInt32();
         }
 
         public SMDHApplicationSettings ()
         {
             this.GameRatings = new List<GameRating>() { new GameRating() };
             this.RegionLockout = "N/A";
-            this.MatchmakerID = "N/A";
-            this.MatchmakerBitID = "N/A";
+            this.MatchmakerID = -1;
+            this.MatchmakerBitID = -1;
             this.Flags = new SMDHFlags();
             this.EulaVersion = "N/A";
             this.EulaVersionNumber = -1;
-            this.OptionalAnimationDefaultFrame = "N/A";
-            this.CEC_StreePassID = "N/A";
+            this.OptionalAnimationDefaultFrame = -1;
+            this.CEC_StreetPassID = -1;
         }
 
         public override string ToString()
         {
-            string output = "Age Ratings:\n\n";
+            string output = "Age Ratings:\n\nRegion Lockout Region: {this.RegionLockout}\nOnline Play Matchmaker ID: {this.MatchmakerID:X8}\nOnline Play Matchmaker Bit ID: {this.MatchmakerBitID:X8}\nEULA (End User License Agreement) Version: {this.EulaVersion}\nOptional Animation Default Frame: {this.OptionalAnimationDefaultFrame}\nCEC (StreetPass) ID: {this.CEC_StreetPassID:X8}\n\n{this.Flags}\n\n";
 
             foreach (GameRating gr in this.GameRatings)
             {
                 output += $"{gr}\n\n";
             }
-
-            output += $"Region Lockout Region: {this.RegionLockout}\n";
-            output += $"Online Play Matchmaker ID: {this.MatchmakerID}\n";
-            output += $"Online Play Matchmaker Bit ID: {this.MatchmakerBitID}\n";
-            output += $"EULA (End User License Agreement) Version: {this.EulaVersion}\n";
-            output += $"Optional Animation Default Frame: {this.OptionalAnimationDefaultFrame}\n";
-            output += $"CEC (StreetPass) ID: {this.CEC_StreePassID}\n\n";
-            output += $"{this.Flags}\n\n";
 
             return output;
         }
