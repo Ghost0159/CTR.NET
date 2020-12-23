@@ -17,5 +17,6 @@ Currently Suppported Types:
 - SMDH (icon.bin, icon.smdh) General Information, HOME Menu Options, etc.
 - NCCH (.cxi/.cfa) General Header Information
 - ExeFS (.exefs) Extraction (maybe .code decompression soon)
+- RomFS (.romfs) Extraction
 
-Now has a Crypto Engine that is able to decrypt CIA contents (NCCH decryption coming soontm)
+Has a Crypto Engine that is able to decrypt CIA contents (NCCH decryption coming soon tm.)
