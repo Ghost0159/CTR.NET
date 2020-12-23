@@ -124,7 +124,7 @@ namespace CTR.NET.Crypto
             // New Nintendo 3DS Firmware Version 9.6 NCCH
             { 0x1B, Tuple.Create(BigInteger.Parse("45AD04953992C7C893724A9A7BCE6182", NumberStyles.HexNumber), BigInteger.Parse("6C8B2944A0726035F941DFC018524FB6", NumberStyles.HexNumber)) },
             // Nintendo 3DS Firmware Version 7.X NCCH
-            { 0x15, Tuple.Create(BigInteger.Parse("CEE7D8AB30C00DAE850EF5E382AC5AF3", NumberStyles.HexNumber), BigInteger.Parse("81907A4B6F1B47323A677974CE4AD71B", NumberStyles.HexNumber)) }
+            { 0x25, Tuple.Create(BigInteger.Parse("CEE7D8AB30C00DAE850EF5E382AC5AF3", NumberStyles.HexNumber), BigInteger.Parse("81907A4B6F1B47323A677974CE4AD71B", NumberStyles.HexNumber)) }
         };
 
         public Dictionary<int, BigInteger> KeyX { get; set; }
@@ -208,7 +208,7 @@ namespace CTR.NET.Crypto
         {
             if (!(slot.Equals("x", StringComparison.CurrentCultureIgnoreCase) || slot.Equals("y", StringComparison.CurrentCultureIgnoreCase)))
             {
-                throw new ArgumentException("Invalid Keyslot. Accepted Values: \"x\" and \"y\" (both cases x X, y Y are supported)");
+                throw new ArgumentException("Invalid Keyslot. Accepted Values: \"x\" and \"y\" (both cases x/X, y/Y are supported)");
             }
 
             if (slot.Equals("x", StringComparison.CurrentCultureIgnoreCase))
@@ -224,11 +224,13 @@ namespace CTR.NET.Crypto
             {
                 if (keyslot < 0x04)
                 {
-                    this.NormalKey[keyslot] = KeyScrambler.GenerateTWLNormalKey(this.KeyX[keyslot], this.KeyY[keyslot]).ToByteArray(true, false);
+                    byte[] generatedKey = KeyScrambler.GenerateTWLNormalKey(this.KeyX[keyslot], this.KeyY[keyslot]).ToByteArray(false, false);
+                    this.NormalKey[keyslot] = (generatedKey.Length > 0x10) ? generatedKey.TakeItems(0x1, generatedKey.Length) : generatedKey;
                 }
                 else
                 {
-                    this.NormalKey[keyslot] = KeyScrambler.GenerateCTRNormalKey(this.KeyX[keyslot], this.KeyY[keyslot]).ToByteArray(true, true);
+                    byte[] generatedKey = KeyScrambler.GenerateCTRNormalKey(this.KeyX[keyslot], this.KeyY[keyslot]).ToByteArray(false, true);
+                    this.NormalKey[keyslot] = (generatedKey.Length > 0x10) ? generatedKey.TakeItems(0x1, generatedKey.Length) : generatedKey;
                 }
             }
             catch (Exception e)
@@ -290,57 +292,5 @@ namespace CTR.NET.Crypto
             }
         }
 
-        public void DecryptCIAContent(string pathToContent, ContentChunkRecord contentRecord)
-        {
-            if (!this.NormalKey.ContainsKey(0x40))
-            {
-                throw new ArgumentException("ERROR: Missing Decrypted Title Key");
-            }
-
-            if (!contentRecord.Flags.Encrypted)
-            {
-                throw new ArgumentException("Content is not Encrypted");
-            }
-
-
-            DecryptContentStream(File.Open($"{pathToContent}", FileMode.Open, FileAccess.ReadWrite), File.Create($"{pathToContent}.temp"), contentRecord);
-
-            File.Move($"{pathToContent}.temp", $"{pathToContent}", true);
-        }
-
-        public void DecryptCIAContent(Stream content, Stream output, ContentChunkRecord contentRecord)
-        {
-            if (!this.NormalKey.ContainsKey(0x40))
-            {
-                throw new ArgumentException("ERROR: Missing Decrypted Title Key");
-            }
-
-            if (!contentRecord.Flags.Encrypted)
-            {
-                throw new ArgumentException("Content is not Encrypted");
-            }
-
-            DecryptContentStream(content, output, contentRecord);
-        }
-
-        private void DecryptContentStream(Stream content, Stream output, ContentChunkRecord contentRecord)
-        {
-            using (content)
-            {
-                using (Aes aes = Aes.Create())
-                {
-                    aes.Key = this.NormalKey[0x40];
-                    aes.IV = BitConverter.GetBytes(contentRecord.ContentIndex).PadRight(0, 16);
-                    aes.Padding = PaddingMode.Zeros;
-                    aes.Mode = CipherMode.CBC;
-
-
-                    using (CryptoStream cs = new CryptoStream(output, aes.CreateDecryptor(), CryptoStreamMode.Write))
-                    {
-                        content.CopyTo(cs);
-                    }
-                }
-            }
-        }
     }
 }

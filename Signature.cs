@@ -23,7 +23,7 @@ namespace CTR.NET
             {
                 Array.Reverse(sigTypeBytes);
             }
-            
+
             switch (BitConverter.ToInt32(sigTypeBytes))
             {
                 case 0x00010000:

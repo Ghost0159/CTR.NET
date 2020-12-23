@@ -1,25 +1,26 @@
-﻿using System.Collections.Generic;
-using System.Runtime.InteropServices;
+﻿using System;
+using System.Collections.Generic;
 using System.Text;
 
 namespace CTR.NET
 {
+    public enum SMDHLanguage
+    {
+        Japanese = 0,
+        English = 1,
+        French = 2,
+        German = 3,
+        Italian = 4,
+        Spanish = 5,
+        Simplified_Chinese = 6,
+        Korean = 7,
+        Dutch = 8,
+        Portuguese = 9,
+        Russian = 10,
+        Traditional_Chinese = 11
+    }
     public class SMDHInfo
     {
-        private static readonly string[] Languages = {
-            "Japanese (JP)",
-            "English (EN)",
-            "French (FR)",
-            "German",
-            "Italian",
-            "Spanish",
-            "Simplified Chinese",
-            "Korean",
-            "Dutch",
-            "Portuguese",
-            "Russian",
-            "Traditional Chinese"
-        };
 
         public string Magic { get; private set; }
         public string Version { get; private set; }
@@ -34,26 +35,18 @@ namespace CTR.NET
             this.VersionNumber = versionInt;
 
             byte[] nameStructuresRaw = smdhData.TakeItems(0x8, 0x2000);
-            int index = 0;
+
+            byte index = 0;
 
             this.TitleNames = new List<SMDHTitleNameStructure>();
 
             for (int i = 0; i < nameStructuresRaw.Length - 0xA00; i += 0x200)
             {
-                this.TitleNames.Add(new SMDHTitleNameStructure(nameStructuresRaw.TakeItems(i, i + 0x200), Languages[index]));
+                this.TitleNames.Add(new SMDHTitleNameStructure(nameStructuresRaw.TakeItems(i, i + 0x200), (SMDHLanguage)Enum.ToObject(typeof(SMDHLanguage), index)));
                 index++;
             }
 
             this.ApplicationSettings = new SMDHApplicationSettings(smdhData.TakeItems(0x2008, 0x2038));
-        }
-
-        public SMDHInfo()
-        {
-            this.Magic = "N/A";
-            this.Version = "N/A";
-            this.VersionNumber = -1;
-            this.TitleNames = new List<SMDHTitleNameStructure>() { new SMDHTitleNameStructure() };
-            this.ApplicationSettings = new SMDHApplicationSettings();
         }
 
         public override string ToString()
@@ -78,9 +71,9 @@ namespace CTR.NET
         public string LongTitle { get; set; }
         public string ShortTitle { get; set; }
         public string Publisher { get; set; }
-        public string Language { get; set; }
+        public SMDHLanguage Language { get; set; }
 
-        public SMDHTitleNameStructure(byte[] titleNameStructureRaw, string language)
+        public SMDHTitleNameStructure(byte[] titleNameStructureRaw, SMDHLanguage language)
         {
             this.LongTitle = titleNameStructureRaw.TakeItems(0x0, 0x80).Decode(Encoding.Unicode);
             this.ShortTitle = titleNameStructureRaw.TakeItems(0x80, 0x180).Decode(Encoding.Unicode);
@@ -88,20 +81,12 @@ namespace CTR.NET
             this.Language = language;
         }
 
-        public SMDHTitleNameStructure()
-        {
-            this.Language = "N/A";
-            this.LongTitle = "N/A";
-            this.Publisher = "N/A";
-            this.ShortTitle = "N/A";
-        }
-
         public override string ToString() => $"-------------------------------\n\nSMDH Title Name Structure:\n\nLanguage: {this.Language}\n\nLong Title: {this.LongTitle}\n\nShort Title: {this.ShortTitle}\n\nPublisher: {this.Publisher}";
     }
 
     public class SMDHApplicationSettings
     {
-        public List<GameRating> GameRatings { get; private set; } = new List<GameRating>();
+        public List<GameRating> GameRatings { get; private set; } = new List<GameRating>() { };
         public string RegionLockout { get; private set; }
         public int MatchmakerID { get; private set; }
         public int MatchmakerBitID { get; private set; }
@@ -122,7 +107,7 @@ namespace CTR.NET
             this.GameRatings.Add(new GameRating(applicationSettings[8], "COB (Australia)"));
             this.GameRatings.Add(new GameRating(applicationSettings[9], "GRB (South Korea)"));
             this.GameRatings.Add(new GameRating(applicationSettings[10], "CGSRR (Taiwan)"));
-            
+
             int regionLockoutRaw = applicationSettings.TakeItems(16, 20).ToInt32();
 
             if ((regionLockoutRaw & 0x01) == 1)
@@ -167,19 +152,6 @@ namespace CTR.NET
             this.CEC_StreetPassID = applicationSettings.TakeItems(44, 48).ToInt32();
         }
 
-        public SMDHApplicationSettings ()
-        {
-            this.GameRatings = new List<GameRating>() { new GameRating() };
-            this.RegionLockout = "N/A";
-            this.MatchmakerID = -1;
-            this.MatchmakerBitID = -1;
-            this.Flags = new SMDHFlags();
-            this.EulaVersion = "N/A";
-            this.EulaVersionNumber = -1;
-            this.OptionalAnimationDefaultFrame = -1;
-            this.CEC_StreetPassID = -1;
-        }
-
         public override string ToString()
         {
             string output = "Age Ratings:\n\nRegion Lockout Region: {this.RegionLockout}\nOnline Play Matchmaker ID: {this.MatchmakerID:X8}\nOnline Play Matchmaker Bit ID: {this.MatchmakerBitID:X8}\nEULA (End User License Agreement) Version: {this.EulaVersion}\nOptional Animation Default Frame: {this.OptionalAnimationDefaultFrame}\nCEC (StreetPass) ID: {this.CEC_StreetPassID:X8}\n\n{this.Flags}\n\n";
@@ -211,14 +183,6 @@ namespace CTR.NET
             }
         }
 
-        public GameRating()
-        {
-            this.RawData = -1;
-            this.Description = "N/A";
-            this.AgeRating = -1;
-            this.isEnabled = false;
-        }
-
         public override string ToString()
         {
             if (this.isEnabled)
@@ -243,21 +207,6 @@ namespace CTR.NET
         public bool ApplicatonDataIsRecorded { get; set; } = false;
         public bool SDSaveDataBackupsDisabled { get; set; } = false;
         public bool IsNew3DSExclusive { get; set; } = false;
-
-        public SMDHFlags ()
-        {
-            this.IsVisible = false;
-            this.AutoBoot = false;
-            this.Uses3D = false;
-            this.RequiresAcceptanceOfEULA = false;
-            this.AutoSaveOnExit = false;
-            this.UsesExtendedBanner = false;
-            this.RegionGameRatingRequired = false;
-            this.UsesSaveData = false;
-            this.ApplicatonDataIsRecorded = false;
-            this.SDSaveDataBackupsDisabled = false;
-            this.IsNew3DSExclusive = false;
-        }
 
         public SMDHFlags(int flags)
         {

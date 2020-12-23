@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.MemoryMappedFiles;
 using System.Numerics;
 using System.Security.Cryptography;
 using System.Linq;
@@ -34,69 +35,141 @@ namespace CTR.NET
 
         public static byte[] HashSHA256(byte[] inputData)
         {
-            byte[] hash = Array.Empty<byte>();
-
             using (var sha256 = SHA256.Create())
             {
-                hash = sha256.ComputeHash(inputData);
+                return sha256.ComputeHash(inputData);
             }
-            return hash;
         }
 
-        public static void ExtractFromStreamBuffered(Stream input, Stream output, long offset, long size, int bufferSize = 4000000)
+        public static void ExtractFileStreamPart(MemoryMappedFile input, Stream output, long offset, long size)
         {
-            using (output)
+            using (MemoryMappedViewStream viewStream = input.CreateViewStream(offset, size))
             {
-                input.Seek(offset, 0);
-
-                byte[] buffer = new byte[bufferSize];
-
-                while (input.Position < offset + size)
+                using (output)
                 {
-                    int remaining = bufferSize, bytesRead;
-                    while (remaining > 0 && (bytesRead = input.Read(buffer, 0, Math.Min(remaining, bufferSize))) > 0)
-                    {
-                        remaining -= bytesRead;
-                        output.Write(buffer);
-                    }
-                }
-
-                if (output.Length > size)
-                {
-                    output.SetLength(size);
+                    viewStream.CopyTo(output);
                 }
             }
         }
 
-        public static byte[] HashSHA256Region(Stream input, long offset, long size, int bufferSize = 20000000)
+        public static void ExtractStreamPartBuffered(Stream input, Stream output, long offset, long size, int bufferSize = 4000000)
         {
-            using (input)
+            input.Seek(offset, SeekOrigin.Begin);
+
+            byte[] buffer = new byte[bufferSize];
+
+            while (input.Position < offset + size)
             {
-                using (var sha256 = SHA256.Create())
+                int remaining = bufferSize, bytesRead;
+                while (remaining > 0 && (bytesRead = input.Read(buffer, 0, Math.Min(remaining, bufferSize))) > 0)
                 {
-                    input.Seek(offset, 0);
-
-                    byte[] buffer = new byte[bufferSize];
-
-                    while (input.Position < offset + size)
-                    {
-                        int remaining = bufferSize, bytesRead;
-                        while (remaining > 0 && (bytesRead = input.Read(buffer, 0, Math.Min(remaining, bufferSize))) > 0)
-                        {
-                            remaining -= bytesRead;
-                            sha256.TransformBlock(buffer, 0, bytesRead, buffer, 0);
-                        }
-                    }
-
-                    sha256.TransformFinalBlock(buffer, 0, 0);
-                    return sha256.Hash;
+                    remaining -= bytesRead;
+                    output.Write(buffer.TakeItems(0, bytesRead));
                 }
             }
+
+            if (output.Length != size)
+            {
+                System.Console.WriteLine($"0x{output.Length:X} was set to 0x{size:X}");
+                output.SetLength(size);
+            }
+        }
+
+        public static void CryptFileStreamPart(MemoryMappedFile input, Stream output, ICryptoTransform transform, long offset, long size)
+        {
+            using (MemoryMappedViewStream viewStream = input.CreateViewStream(offset, size))
+            {
+                CryptoStream cs = new CryptoStream(output, transform, CryptoStreamMode.Write);
+                viewStream.CopyTo(cs);
+                cs.FlushFinalBlock();
+            }
+        }
+
+        public static byte[] CryptBytes(byte[] bytes, ICryptoTransform transform)
+        {
+            using (MemoryStream ms = new MemoryStream())
+            {
+                using (CryptoStream cs = new CryptoStream(ms, transform, CryptoStreamMode.Write))
+                {
+                    cs.Write(bytes, 0, bytes.Length);
+                    cs.FlushFinalBlock();
+                }
+
+                return ms.ToArray();
+            }
+        }
+
+        public static byte[] SeekReadBytes(this Stream s, long offset, SeekOrigin seekOrigin, long length)
+        {
+            s.Seek(offset, seekOrigin);
+
+            return s.ReadBytes(length);
+        }
+
+        public static byte[] HashSHA256Region(MemoryMappedFile input, long offset, long size)
+        {
+            using (MemoryMappedViewStream viewStream = input.CreateViewStream(offset, size))
+            {
+                using (SHA256 hashTransform = SHA256.Create())
+                {
+                    return hashTransform.ComputeHash(viewStream);
+                }
+            }
+        }
+
+        public static byte[] HashStreamSHA256(Stream stream, bool dispose = false)
+        {
+            using (SHA256 sha256 = SHA256.Create())
+            {
+                byte[] hash = sha256.ComputeHash(stream);
+
+                if (dispose)
+                    stream.Dispose();
+
+                return hash;
+            }
+
+
         }
     }
 
     public static class ExtensionMethods
     {
+        public static byte[] ToBytes(this BigInteger b)
+        {
+            byte[] output = new byte[16];
+
+            int written;
+
+            try
+            {
+                System.Console.WriteLine("wrote unsigned");
+                b.TryWriteBytes(output, out written, true, true);
+            }
+            catch (Exception)
+            {
+                System.Console.WriteLine("wrote signed");
+                b.TryWriteBytes(output, out written, false, true);
+            }
+
+            return output;
+        }
+
+        public static byte[] ToCTRBytes(this BigInteger b)
+        {
+            byte[] output = new byte[16];
+
+            int written;
+
+            b.TryWriteBytes(output, out written, false, false);
+
+            if (BitConverter.IsLittleEndian)
+            {
+                Array.Reverse(output);
+            }
+
+            return output;
+        }
         public static Int64 ToInt64(this byte[] bytes, bool isBigEndian = false)
         {
             if (isBigEndian)
@@ -148,7 +221,7 @@ namespace CTR.NET
 
             return BitConverter.ToUInt64(bytes, 0);
         }
-        
+
         public static UInt32 ToUInt32(this byte[] bytes, bool isBigEndian = false)
         {
             if (isBigEndian)
@@ -199,15 +272,11 @@ namespace CTR.NET
 
         public static byte[] ReadBytes(this Stream s, long length)
         {
-            List<byte> output = new List<byte>();
-            long alength = s.Position + length;
+            byte[] outputBytes = new byte[length];
 
-            for (long i = s.Position; i < alength; i++)
-            {
-                output.Add((byte)s.ReadByte());
-            }
+            s.Read(outputBytes);
 
-            return output.ToArray();
+            return outputBytes;
         }
 
         public static string Decode(this byte[] bytes, Encoding encoding)
@@ -230,24 +299,29 @@ namespace CTR.NET
             return output;
         }
 
-        public static string Hex(this byte[] bytes, bool littleEndian = false)
+        public static string Hex(this byte[] bytes, bool isBigEndian = false)
         {
             string output = "";
 
-            if (littleEndian)
+            if (isBigEndian)
             {
-                Array.Reverse(bytes);
+                foreach (byte b in bytes.FReverse())
+                {
+                    output += b.ToString("X2");
+                }
             }
-
-            foreach (byte b in bytes)
+            else
             {
-                output += b.ToString("X2");
+                foreach (byte b in bytes)
+                {
+                    output += b.ToString("X2");
+                }
             }
 
             return output;
         }
 
-        //Linq is slow, imma use this instead because yes
+        //Reinventing Linq functions because I can and want to
         public static T[] FReverse<T>(this T[] input)
         {
             T[] output = new T[input.Length];
@@ -363,8 +437,16 @@ namespace CTR.NET
             {
                 return false;
             }
-            
+
             return true;
         }
+
+        public static void AddIfExists(this List<NCCHRegion> list, NCCHRegion region)
+        {
+            if (region.Size != 0)
+            {
+                list.Add(region);
+            }
+        }
     }
-}   
+}

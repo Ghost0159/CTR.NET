@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.MemoryMappedFiles;
 using System.Linq;
 
 namespace CTR.NET
@@ -8,29 +9,48 @@ namespace CTR.NET
     public class NCSD : IDisposable
     {
         public NCSDInfo Info { get; private set; }
-        private Stream NCSDStream { get; set; }
+        private MemoryMappedFile NCSDMemoryMappedFile { get; set; }
 
-        public NCSD(Stream ncsdStream)
+        public NCSD(FileStream ncsdStream)
         {
-            this.NCSDStream = ncsdStream;
-            this.Info = new NCSDInfo(ncsdStream);
+            this.NCSDMemoryMappedFile = MemoryMappedFile.CreateFromFile(ncsdStream, null, ncsdStream.Length, MemoryMappedFileAccess.ReadWrite, HandleInheritability.Inheritable, true);
+
+            using (MemoryMappedViewStream viewStream = this.NCSDMemoryMappedFile.CreateViewStream(0, ncsdStream.Length))
+            {
+                this.Info = new NCSDInfo(viewStream);
+            }
         }
 
-        public void ExtractPartition(FileStream outputFile, NCSDPartitions partition)
+        public NCSD(string pathToNcsd)
+        {
+            if (!File.Exists(pathToNcsd))
+                throw new ArgumentException("The specified file was not found.");
+
+            FileStream fs = File.Open(pathToNcsd, FileMode.Open, FileAccess.ReadWrite);
+
+            this.NCSDMemoryMappedFile = MemoryMappedFile.CreateFromFile(fs, null, fs.Length, MemoryMappedFileAccess.ReadWrite, HandleInheritability.Inheritable, true);
+
+            using (MemoryMappedViewStream viewStream = this.NCSDMemoryMappedFile.CreateViewStream(0, fs.Length))
+            {
+                this.Info = new NCSDInfo(viewStream);
+            }
+        }
+
+        public void ExtractPartition(FileStream outputFile, NCSDSection partition)
         {
             if (!this.Info.Partitions.Any(part => part.ID == partition))
             {
-                throw new ArgumentException($"Specified partition ID {Enum.GetName(typeof(NCSDPartitions), partition)} {(int)partition} was not found inside this NCSD.");
+                throw new ArgumentException($"Specified partition ID {Enum.GetName(typeof(NCSDSection), partition)} {(int)partition} was not found inside this NCSD.");
             }
 
             Extract(this.Info.Partitions.Find(part => part.ID == partition), outputFile);
         }
 
-        public void ExtractPartition(string outputFilePath, NCSDPartitions partition)
+        public void ExtractPartition(string outputFilePath, NCSDSection partition)
         {
             if (!this.Info.Partitions.Any(part => part.ID == partition))
             {
-                throw new ArgumentException($"Specified partition ID {Enum.GetName(typeof(NCSDPartitions), partition)} {(int)partition} was not found inside this NCSD.");
+                throw new ArgumentException($"Specified partition ID {Enum.GetName(typeof(NCSDSection), partition)} {(int)partition} was not found inside this NCSD.");
             }
 
             Extract(this.Info.Partitions.Find(part => part.ID == partition), File.Create(outputFilePath));
@@ -40,62 +60,60 @@ namespace CTR.NET
         {
             foreach (NCSDPartition partition in this.Info.Partitions)
             {
-                Extract(partition, File.Create($"{outputDirectory.FullName}/content_{Enum.GetName(typeof(NCSDPartitions), partition)}.ncch"));
+                Extract(partition, File.Create($"{outputDirectory.FullName}/content_{Enum.GetName(typeof(NCSDSection), partition.ID)}.ncch"));
             }
         }
 
         private void Extract(NCSDPartition section, Stream outputStream)
         {
-            Tools.ExtractFromStreamBuffered(this.NCSDStream, outputStream, section.Offset, section.Offset + section.Size);
+            using (outputStream)
+            {
+                Tools.ExtractFileStreamPart(this.NCSDMemoryMappedFile, outputStream, section.Offset, section.Size);
+            }
         }
 
         public void Dispose()
         {
-            this.NCSDStream.Dispose();
+            this.NCSDMemoryMappedFile.Dispose();
         }
     }
     public class NCSDInfo
     {
-        public static int NCSDMediaUnit = 0x200;
         public long ImageSize { get; private set; }
         public List<NCSDPartition> Partitions { get; private set; }
         public byte[] MediaId { get; private set; }
 
         public NCSDInfo(Stream ncsdStream)
         {
-            ncsdStream.Seek(0x100, SeekOrigin.Begin);
-            byte[] header = ncsdStream.ReadBytes(0x100);
+            byte[] header = ncsdStream.SeekReadBytes(0x100, SeekOrigin.Begin, 0x100);
 
             if (header.TakeItems(0x0, 0x4).Hex() != "4E435344") //if header at 0x0-0x4 isn't 'NCSD'
             {
                 throw new ArgumentException("NCSD magic not found in header of specified file.");
             }
 
-            this.MediaId = header.TakeItems(0x8, 0x10).FReverse();
+            this.MediaId = header.TakeItems(0x8, 0x10);
 
-            if (this.MediaId == new byte[] { 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 })
+            if (this.MediaId.All(b => b == 0x0))
             {
                 throw new ArgumentException("Specified file is a NAND, and not an NCSD Image.");
             }
 
-            this.ImageSize = header.TakeItems(0x4, 0x8).FReverse().ToInt64() * NCSDMediaUnit;
+            this.ImageSize = header.TakeItems(0x4, 0x8).ToInt32() * 0x200;
 
             this.Partitions = new List<NCSDPartition>();
 
             byte[] partRaw = header.TakeItems(0x20, 0x60);
 
-            int[] range = new int[] { 0, 8, 16, 24, 32, 40, 48, 56 };
-
-            for (int i = 0; i < range.Length; i++)
+            for (int i = 0; i < 64; i += 8)
             {
-                byte[] partInfo = partRaw.TakeItems(range[i], range[i] + 8);
-                long partOffset = (long)partInfo.TakeItems(0x0, 0x4).ToInt32() * (long)NCSDMediaUnit;
-                long partSize = (long)partInfo.TakeItems(0x4, 0x8).ToInt32() * (long)NCSDMediaUnit;
+                byte[] partInfo = partRaw.TakeItems(i, i + 8);
+                int partOffset = partInfo.TakeItems(0x0, 0x4).ToInt32() * 0x200;
+                int partSize = partInfo.TakeItems(0x4, 0x8).ToInt32() * 0x200;
 
                 if (partOffset > 0)
                 {
-                    int partitionId = i;
-                    this.Partitions.Add(new NCSDPartition(partOffset, partSize, i));
+                    this.Partitions.Add(new NCSDPartition(partOffset, partSize, i / 8));
                 }
             }
         }
@@ -104,7 +122,7 @@ namespace CTR.NET
         {
             string output =
                 $"NCSD IMAGE\n" +
-                $"Media ID: {this.MediaId}\n" +
+                $"Media ID: {this.MediaId.Hex(true)}\n" +
                 $"Image Size: {this.ImageSize} (0x{this.ImageSize:X}) bytes\n\n";
 
             foreach (NCSDPartition s in this.Partitions)
@@ -120,26 +138,26 @@ namespace CTR.NET
     {
         public long Offset { get; private set; }
         public long Size { get; private set; }
-        public NCSDPartitions ID { get; set; }
+        public NCSDSection ID { get; set; }
 
         public NCSDPartition(long offset, long size, int id)
         {
             this.Offset = offset;
             this.Size = size;
-            this.ID = (NCSDPartitions)id;
+            this.ID = (NCSDSection)id;
         }
 
         public override string ToString()
         {
             return
                 $"NCSD SECTION \n" +
-                $"ID: {(int)this.ID} ({Enum.GetName(typeof(NCSDPartitions), this.ID)})\n" +
+                $"ID: {(int)this.ID} ({Enum.GetName(typeof(NCSDSection), this.ID)})\n" +
                 $"Offset: 0x{this.Offset:X}\n" +
                 $"Size: {this.Size} (0x{this.Size:X}) bytes";
         }
     }
 
-    public enum NCSDPartitions
+    public enum NCSDSection
     {
         Application = 0,
         Manual = 1,

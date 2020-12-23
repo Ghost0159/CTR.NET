@@ -6,30 +6,10 @@ using System.Text;
 
 namespace CTR.NET
 {
-    public class TMD : IDisposable
-    {
-        public TMDInfo Info;
-        private Stream TMDStream { get; set; }
-
-        public TMD(Stream tmdStream)
-        {
-            this.TMDStream = tmdStream;
-            this.Info = new TMDInfo(this.TMDStream, false);
-        }
-
-        public TMD(byte[] tmdBytes)
-        {
-            this.TMDStream = new MemoryStream(tmdBytes);
-            this.Info = new TMDInfo(this.TMDStream, false);
-        }
-
-        public void Dispose()
-        {
-            this.TMDStream.Dispose();
-        }
-    }
     public class TMDInfo
     {
+        public static readonly int ChunkRecordSize = 0x30;
+
         public byte[] RawData { get; private set; }
         public Signature SignatureInfo { get; private set; }
         public byte[] SignatureData { get; private set; }
@@ -56,16 +36,120 @@ namespace CTR.NET
         public byte[] AccessRights { get; private set; }
         public byte[] BootContent { get; private set; }
 
-        public TMDInfo(Stream tmdStream, bool closeStreamAfterRead = true)
+        public TMDInfo(byte[] tmdBytes, bool verifyHashes = true)
         {
-            this.RawData = tmdStream.ReadBytes(tmdStream.Length);
-            tmdStream.Seek(0, SeekOrigin.Begin);
+            this.RawData = tmdBytes;
 
-            Read(tmdStream);
-
-            if (closeStreamAfterRead)
+            using (MemoryStream tmdStream = new MemoryStream(tmdBytes))
             {
-                tmdStream.Dispose();
+                this.SignatureInfo = Signature.Parse(tmdStream.ReadBytes(0x4));
+
+                if (this.SignatureInfo.Size == 0)
+                {
+                    Console.WriteLine("Could not determine Signature Type of TMD.");
+                }
+
+                this.SignatureData = tmdStream.ReadBytes(this.SignatureInfo.Size);
+
+                tmdStream.ReadBytes(this.SignatureInfo.PaddingSize);
+
+                this.Header = tmdStream.ReadBytes(0xC4);
+
+                if (this.Header.Length != 0xC4)
+                {
+                    throw new ArgumentException($"TMD Header size is wrong, expected 0xC4 but got {this.Header.Length:X4}");
+                }
+
+                this.TitleID = this.Header.TakeItems(0x4C, 0x54);
+                this.SaveDataSize = this.Header.TakeItems(0x5A, 0x5E).ToInt32();
+                this.SrlSaveDataSize = this.Header.TakeItems(0x5E, 0x62).ToInt32();
+                this.RawTitleVersion = this.Header.TakeItems(0x9C, 0x9E).ToInt16(true);
+                this.TitleVersion = $"{(this.RawTitleVersion >> 10) & 0x3F}.{(this.RawTitleVersion >> 4) & 0x3F}.{this.RawTitleVersion & 0xF}";
+                this.ContentCount = this.Header.TakeItems(0x9E, 0xA0).ToInt16(true);
+                this.ContentInfoRecordsHash = this.Header.TakeItems(0xA4, 0xC4);
+                this.RawContentInfoRecords = tmdStream.ReadBytes(0x900);
+
+                if (this.RawContentInfoRecords.Length != 0x900)
+                {
+                    throw new ArgumentException("TMD Content Info Records size is invalid.");
+                }
+
+                if (verifyHashes)
+                {
+                    if (Tools.HashSHA256(this.RawContentInfoRecords).Hex() != this.ContentInfoRecordsHash.Hex())
+                    {
+                        throw new ArgumentException("TMD Content Info Records Hash does not match.");
+                    }
+                }
+
+                this.RawContentChunkRecords = tmdStream.ReadBytes(this.ContentCount * ChunkRecordSize);
+                this.ContentChunkRecords = new List<ContentChunkRecord>();
+
+                for (int i = 0; i < this.ContentCount * ChunkRecordSize; i += ChunkRecordSize)
+                {
+                    byte[] contentChunk = this.RawContentChunkRecords.TakeItems(i, i + ChunkRecordSize);
+
+                    this.ContentChunkRecords.Add(new ContentChunkRecord(contentChunk));
+                }
+
+                this.ContentInfoRecords = new List<ContentInfoRecord>();
+
+                for (int i = 0; i < 0x900; i += 0x24)
+                {
+                    byte[] infoRecord = this.RawContentInfoRecords.TakeItems(i, i + 0x24);
+
+                    if (!infoRecord.All(b => b == 0x0))
+                    {
+                        this.ContentInfoRecords.Add(new ContentInfoRecord(infoRecord));
+                    }
+                }
+
+                if (verifyHashes)
+                {
+                    List<ContentChunkRecord> hashedChunkRecords = new List<ContentChunkRecord>();
+
+                    foreach (ContentInfoRecord infoRecord in this.ContentInfoRecords)
+                    {
+                        List<ContentChunkRecord> toHash = new List<ContentChunkRecord>();
+
+                        foreach (ContentChunkRecord chunkRecord in this.ContentChunkRecords)
+                        {
+                            if (hashedChunkRecords.Contains(chunkRecord))
+                            {
+                                throw new ArgumentException("Invalid TMD - Got same chunk record twice");
+                            }
+
+                            hashedChunkRecords.Add(chunkRecord);
+                            toHash.Add(chunkRecord);
+                        }
+
+                        byte[] dataToHash = new byte[] { };
+
+                        foreach (ContentChunkRecord cr in toHash)
+                        {
+                            dataToHash = dataToHash.MergeWith(cr.Raw);
+                        }
+
+                        byte[] hash = Tools.HashSHA256(dataToHash);
+
+                        if (hash.Hex() != infoRecord.Hash.Hex())
+                        {
+                            Console.WriteLine("\nGot: " + hash.Hex());
+                            throw new ArgumentException($"Invalid Info Records Detected.\nExpected: {infoRecord.Hash.Hex()}\nGot: {hash.Hex()}");
+                        }
+                    }
+                }
+
+                this.SignatureIssuer = Encoding.ASCII.GetString(this.Header.TakeItems(0x0, 0x40)).Replace("\0", "");
+                this.Version = this.Header[0x40];
+                this.CaCrlVersion = this.Header[0x41];
+                this.SignerCrlVersion = this.Header[0x42];
+                this.SystemVersion = this.Header.TakeItems(0x44, 0x4C).ToInt64(true);
+                this.TitleType = this.Header.TakeItems(0x54, 0x58).ToInt32(true);
+                this.GroupId = this.Header.TakeItems(0x58, 0x5A);
+                this.SrlFlag = this.Header[0x66];
+                this.AccessRights = this.Header.TakeItems(0x98, 0x9C);
+                this.BootContent = this.Header.TakeItems(0xA0, 0xA2);
             }
         }
 
@@ -103,120 +187,6 @@ namespace CTR.NET
 
             return output;
         }
-
-        public static int ChunkRecordSize = 0x30;
-
-        private void Read(Stream tmdStream, bool verifyHashes = true)
-        {
-            this.SignatureInfo = Signature.Parse(tmdStream.ReadBytes(0x4));
-
-            if (this.SignatureInfo.Size == 0)
-            {
-                Console.WriteLine("Could not determine Signature Type of TMD.");
-            }
-
-            this.SignatureData = tmdStream.ReadBytes(this.SignatureInfo.Size);
-
-            tmdStream.ReadBytes(this.SignatureInfo.PaddingSize);
-
-            this.Header = tmdStream.ReadBytes(0xC4);
-
-            if (this.Header.Length != 0xC4)
-            {
-                throw new ArgumentException($"TMD Header size is wrong, expected 0xC4 but got {this.Header.Length:X4}");
-            }
-
-            this.TitleID = this.Header.TakeItems(0x4C, 0x54);
-            this.SaveDataSize = this.Header.TakeItems(0x5A, 0x5E).ToInt32();
-            this.SrlSaveDataSize = this.Header.TakeItems(0x5E, 0x62).ToInt32();
-            this.RawTitleVersion = this.Header.TakeItems(0x9C, 0x9E).ToInt16(true);
-            this.TitleVersion = $"{(this.RawTitleVersion >> 10) & 0x3F}.{(this.RawTitleVersion >> 4) & 0x3F}.{this.RawTitleVersion & 0xF}";
-            this.ContentCount = this.Header.TakeItems(0x9E, 0xA0).ToInt16(true);
-            this.ContentInfoRecordsHash = this.Header.TakeItems(0xA4, 0xC4);
-            this.RawContentInfoRecords = tmdStream.ReadBytes(0x900);
-
-            if (this.RawContentInfoRecords.Length != 0x900)
-            {
-                throw new ArgumentException("TMD Content Info Records size is invalid.");
-            }
-
-            if (verifyHashes)
-            {
-                if (Tools.HashSHA256(this.RawContentInfoRecords).Hex() != this.ContentInfoRecordsHash.Hex())
-                {
-                    throw new ArgumentException("TMD Content Info Records Hash does not match.");
-                }
-            }
-
-            this.RawContentChunkRecords = tmdStream.ReadBytes(this.ContentCount * ChunkRecordSize);
-            this.ContentChunkRecords = new List<ContentChunkRecord>();
-
-            for (int i = 0; i < this.ContentCount * ChunkRecordSize; i += ChunkRecordSize)
-            {
-                byte[] contentChunk = this.RawContentChunkRecords.TakeItems(i, i + ChunkRecordSize);
-
-                this.ContentChunkRecords.Add(new ContentChunkRecord(contentChunk));
-            }
-
-            this.ContentInfoRecords = new List<ContentInfoRecord>();
-
-            for (int i = 0; i < 0x900; i += 0x24)
-            {
-                byte[] infoRecord = this.RawContentInfoRecords.TakeItems(i, i + 0x24);
-
-                if (!infoRecord.All(b => b == 0x0))
-                {
-                    this.ContentInfoRecords.Add(new ContentInfoRecord(infoRecord));
-                }
-            }
-
-            if (verifyHashes)
-            {
-                List<ContentChunkRecord> hashedChunkRecords = new List<ContentChunkRecord>();
-
-                foreach (ContentInfoRecord infoRecord in this.ContentInfoRecords)
-                {
-                    List<ContentChunkRecord> toHash = new List<ContentChunkRecord>();
-
-                    foreach (ContentChunkRecord chunkRecord in this.ContentChunkRecords)
-                    {
-                        if (hashedChunkRecords.Contains(chunkRecord))
-                        {
-                            throw new ArgumentException("Invalid TMD - Got same chunk record twice");
-                        }
-
-                        hashedChunkRecords.Add(chunkRecord);
-                        toHash.Add(chunkRecord);
-                    }
-
-                    byte[] dataToHash = new byte[] { };
-
-                    foreach (ContentChunkRecord cr in toHash)
-                    {
-                        dataToHash = dataToHash.MergeWith(cr.Raw);
-                    }
-
-                    byte[] hash = Tools.HashSHA256(dataToHash);
-
-                    if (hash.Hex() != infoRecord.Hash.Hex())
-                    {
-                        Console.WriteLine("\nGot: " + hash.Hex());
-                        throw new ArgumentException($"Invalid Info Records Detected.\nExpected: {infoRecord.Hash.Hex()}\nGot: {hash.Hex()}");
-                    }
-                }
-            }
-
-            this.SignatureIssuer = Encoding.ASCII.GetString(this.Header.TakeItems(0x0, 0x40)).Replace("\0", "");
-            this.Version = this.Header[0x40];
-            this.CaCrlVersion = this.Header[0x41];
-            this.SignerCrlVersion = this.Header[0x42];
-            this.SystemVersion = this.Header.TakeItems(0x44, 0x4C).ToInt64(true);
-            this.TitleType = this.Header.TakeItems(0x54, 0x58).ToInt32(true);
-            this.GroupId = this.Header.TakeItems(0x58, 0x5A);
-            this.SrlFlag = this.Header[0x66];
-            this.AccessRights = this.Header.TakeItems(0x98, 0x9C);
-            this.BootContent = this.Header.TakeItems(0xA0, 0xA2);
-        }
     }
 
     public class ContentChunkRecord
@@ -241,13 +211,18 @@ namespace CTR.NET
 
         public override string ToString() =>
             $"--------------------------------\n" +
-            $"Content Chunk Record - {this.ContentIndex:X4}.{this.ID:X8}:\n\n" +
+            $"Content Chunk Record - {this.GetContentName()}:\n\n" +
             $"ID: {this.ID:X8}\n" +
             $"Content Index: {this.ContentIndex} ({this.ContentIndex:X4})\n\n" +
             $"{this.Flags}\n\n" +
             $"Content Size: {this.Size} (0x{this.Size:X}) bytes\n" +
             $"Hash: {this.Hash.Hex()}\n" +
             $"--------------------------------";
+
+        public string GetContentName()
+        {
+            return $"{this.ContentIndex:X4}.{this.ID:X8}";
+        }
     }
 
     public class ContentInfoRecord
@@ -268,33 +243,33 @@ namespace CTR.NET
         public override string ToString() => $"Content Info Record:\n\nIndex Offset: {this.IndexOffset}\nCommand Count: {this.CommandCount}\nHash: {this.Hash.Hex()}";
     }
 
-public class ContentTypeFlags
-{
-    public short Raw { get; private set; }
-    public bool Encrypted { get; private set; }
-    public bool IsDisc { get; private set; }
-    public bool Cfm { get; private set; }
-    public bool Optional { get; private set; }
-    public bool Shared { get; private set; }
-
-    public ContentTypeFlags(short flags)
+    public class ContentTypeFlags
     {
-        this.Raw = flags;
-        this.Encrypted = (flags & 1) > 0;
-        this.IsDisc = (flags & 2) > 0;
-        this.Cfm = (flags & 4) > 0;
-        this.Optional = (flags & 0x4000) > 0;
-        this.Shared = (flags & 0x8000) > 0;
-    }
+        public short Raw { get; private set; }
+        public bool Encrypted { get; private set; }
+        public bool IsDisc { get; private set; }
+        public bool Cfm { get; private set; }
+        public bool Optional { get; private set; }
+        public bool Shared { get; private set; }
 
-    public override string ToString() =>
-        $"================================\n" +
-        $"Content Type Flags:\n\n" +
-        $"Encrypted: {this.Encrypted}\n" +
-        $"Is Disc: {this.IsDisc}\n" +
-        $"CFM: {this.Cfm}\n" +
-        $"Optional: {this.Optional}\n" +
-        $"Shared: {this.Shared}\n" +
-        $"================================";
-}
+        public ContentTypeFlags(short flags)
+        {
+            this.Raw = flags;
+            this.Encrypted = (flags & 1) > 0;
+            this.IsDisc = (flags & 2) > 0;
+            this.Cfm = (flags & 4) > 0;
+            this.Optional = (flags & 0x4000) > 0;
+            this.Shared = (flags & 0x8000) > 0;
+        }
+
+        public override string ToString() =>
+            $"================================\n" +
+            $"Content Type Flags:\n\n" +
+            $"Encrypted: {this.Encrypted}\n" +
+            $"Is Disc: {this.IsDisc}\n" +
+            $"CFM: {this.Cfm}\n" +
+            $"Optional: {this.Optional}\n" +
+            $"Shared: {this.Shared}\n" +
+            $"================================";
+    }
 }

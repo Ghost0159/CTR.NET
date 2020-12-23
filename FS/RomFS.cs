@@ -35,7 +35,7 @@ namespace CTR.NET.FS
         Directory = 1
     }
 
-    public class RomFS
+    public class RomFS : IDisposable
     {
         private Stream RomFSStream { get; set; }
         private bool IsCaseInsensitive { get; set; }
@@ -61,7 +61,7 @@ namespace CTR.NET.FS
 
             byte[] magic = this.RomFSStream.ReadBytes(4);
 
-            if (Enumerable.SequenceEqual(magic, new byte[] {0x49, 0x56, 0x46, 0x43})) //"IFVC"
+            if (Enumerable.SequenceEqual(magic, new byte[] { 0x49, 0x56, 0x46, 0x43 })) //"IFVC"
             {
                 byte[] ifvc = magic.MergeWith(this.RomFSStream.ReadBytes(0x54));
                 int ifvcMagicNumber = ifvc.TakeItems(0x4, 0x8).ToInt32();
@@ -76,7 +76,7 @@ namespace CTR.NET.FS
                 int lv3HashBlockSize = 1 << lv3BlockSize;
 
                 LV3Offset += Tools.RoundUp(masterHashSize + 0x60, lv3HashBlockSize);
-                
+
                 this.RomFSStream.Seek(LV3Offset, SeekOrigin.Begin);
                 magic = this.RomFSStream.ReadBytes(4);
             }
@@ -96,27 +96,27 @@ namespace CTR.NET.FS
             {
                 throw new ArgumentException("Length defined in LV3 Header is not 0x20");
             }
-            
+
             if (this.LV3DirHash.Offset < lv3HeaderSize)
             {
                 throw new ArgumentException("Directory Hash Offset is before the end of the LV3 Header");
             }
-            
+
             if (this.LV3DirMeta.Offset < this.LV3DirHash.Offset + this.LV3DirHash.Size)
             {
                 throw new ArgumentException("Directory Metadata Offset is before the end of the Directory Hash Region");
             }
-            
+
             if (this.LV3FileHash.Offset < this.LV3DirMeta.Offset + this.LV3DirMeta.Size)
             {
                 throw new ArgumentException("File Hash Offset is before the end of the Directory Metadata Region");
             }
-            
+
             if (this.LV3FileMeta.Offset < this.LV3FileHash.Offset + this.LV3FileHash.Size)
             {
                 throw new ArgumentException("File Metadata Offset is before the end of the File Hash Region");
             }
-            
+
             if (lv3FileDataOffset < this.LV3FileMeta.Offset + this.LV3FileMeta.Size)
             {
                 throw new ArgumentException("File Data Offset is before the end of the File Metadata Region");
@@ -128,7 +128,11 @@ namespace CTR.NET.FS
             GetEntries(this.FileSystem, this.RomFSStream.ReadBytes(0x18), "/");
         }
 
-        private void GetEntries(RomFSEntry entry, byte[] raw, string currentPath) 
+        public void Dispose()
+        {
+            this.RomFSStream.Dispose();
+        }
+        private void GetEntries(RomFSEntry entry, byte[] raw, string currentPath)
         {
             UInt32 firstChildDir = raw.TakeItems(0x8, 0xC).ToUInt32();
             UInt32 firstFile = raw.TakeItems(0xC, 0x10).ToUInt32();
@@ -152,8 +156,8 @@ namespace CTR.NET.FS
                     {
                         Console.WriteLine($"Directory Name Collision: {currentPath}{childDirName}");
                     }
-                    
-                    entry.Contents.Add(new RomFSEntry{ Name = childDirName, NameMeta = childDirNameMeta } );
+
+                    entry.Contents.Add(new RomFSEntry { Name = childDirName, NameMeta = childDirNameMeta });
                     GetEntries(entry.Contents.Find(content => content.Name == childDirName), childDirMeta, $"{currentPath}{childDirName}/");
 
                     if (nextSiblingDir == 0xFFFFFFFF)
@@ -180,24 +184,24 @@ namespace CTR.NET.FS
                     string childFileName = this.RomFSStream.ReadBytes(childFileMeta.TakeItems(0x1C, 0x20).ToUInt32()).Decode(Encoding.Unicode);
                     string childFileNameMeta = (this.IsCaseInsensitive) ? childFileName.ToLower() : childFileName;
 
-                    if (entry.Contents.Any(content => content.NameMeta == childFileNameMeta && content.Type == RomFSEntryType.File)) 
+                    if (entry.Contents.Any(content => content.NameMeta == childFileNameMeta && content.Type == RomFSEntryType.File))
                     {
                         Console.WriteLine($"Directory Name Collision: {currentPath}{childFileName}");
                     }
 
-                    entry.Contents.Add(new RomFSEntry { NameMeta = childFileNameMeta, Name = childFileName, Offset = childFileOffset, Size = childFileSize, Type = RomFSEntryType.File});;
+                    entry.Contents.Add(new RomFSEntry { NameMeta = childFileNameMeta, Name = childFileName, Offset = childFileOffset, Size = childFileSize, Type = RomFSEntryType.File }); ;
                     this.TotalSize += childFileSize;
 
                     if (nextSiblingFile == 0xFFFFFFFF)
                     {
                         break;
                     }
-                    
+
                     this.RomFSStream.Seek(this.LV3Offset + LV3FileMeta.Offset + nextSiblingFile, SeekOrigin.Begin);
                 }
             }
         }
-    
+
         public void ExtractFile(Stream outputStream, string path)
         {
             RomFSEntry entry = GetEntryFromPath(path);
@@ -207,7 +211,10 @@ namespace CTR.NET.FS
                 throw new ArgumentException($"Path \"{path}\" points to a directory, not a file. You can use ExtractEntry() for this.");
             }
 
-            Tools.ExtractFromStreamBuffered(this.RomFSStream, outputStream, this.DataOffset + entry.Offset, entry.Size);
+            using (outputStream)
+            {
+                Tools.ExtractStreamPartBuffered(this.RomFSStream, outputStream, this.DataOffset + entry.Offset, entry.Size);
+            }
         }
 
         public void ExtractEntry(RomFSEntry entry, string outputDirectoryPath)
@@ -228,7 +235,10 @@ namespace CTR.NET.FS
                 }
                 else if (ent.Type == RomFSEntryType.File)
                 {
-                    Tools.ExtractFromStreamBuffered(this.RomFSStream, File.Create($"{outputDirectoryPath}/{ent.Name}"), this.DataOffset + ent.Offset, ent.Size);
+                    using (FileStream fs = File.Create($"{outputDirectoryPath}/{ent.Name}"))
+                    {
+                        Tools.ExtractStreamPartBuffered(this.RomFSStream, fs, this.DataOffset + ent.Offset, ent.Size);
+                    }
                 }
             }
         }
@@ -249,7 +259,7 @@ namespace CTR.NET.FS
                     break;
                 }
 
-                try 
+                try
                 {
                     entry = entry.Contents.Find(content => content.Name == part);
                 }

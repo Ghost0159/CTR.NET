@@ -68,16 +68,16 @@ namespace CTR.NET.Crypto
 
         public static BigInteger GenerateCTRNormalKey(BigInteger keyX, BigInteger keyY)
         {
-            BigInteger key = BigInteger.Add(XORBytes(RotateByteArray(keyX.ToByteArray(true, true), ArrayRotationDirection.Left, 2), keyY.ToByteArray(true, true)).ToUnsignedBigInt(), C1);
+            BigInteger key = BigInteger.Add(XORBytes(RotateByteArray(keyX.ToBytes(), ArrayRotationDirection.Left, 2), keyY.ToBytes()).ToUnsignedBigInt(), C1);
 
-            return RotateByteArray(key.ToByteArray(false, true), ArrayRotationDirection.Right, 41).ToUnsignedBigInt();
+            return RotateByteArray(key.ToBytes(), ArrayRotationDirection.Right, 41).ToUnsignedBigInt();
         }
 
         public static BigInteger GenerateTWLNormalKey(BigInteger keyX, BigInteger keyY)
         {
-            BigInteger key = BigInteger.Add(XORBytes(keyX.ToByteArray(true, true), keyY.ToByteArray(true, true)).ToUnsignedBigInt(), C2);
+            BigInteger key = BigInteger.Add(XORBytes(keyX.ToBytes(), keyY.ToBytes()).ToUnsignedBigInt(), C2);
 
-            return RotateByteArray(key.ToByteArray(false, true), ArrayRotationDirection.Left, 42).ToUnsignedBigInt();
+            return RotateByteArray(key.ToBytes(), ArrayRotationDirection.Left, 42).ToUnsignedBigInt();
         }
     }
 }
