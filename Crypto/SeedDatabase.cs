@@ -35,7 +35,7 @@ namespace CTR.NET.Crypto
 
                 if (seedDatabaseStream.Length != 0x10 + titleAmount * 0x20)
                 {
-                    throw new ArgumentException($"Expected length {0x10 + titleAmount * 0x20}, got {seedDatabaseStream.Length} instead.");
+                    throw new ArgumentException($"Expected file size {0x10 + titleAmount * 0x20}, got {seedDatabaseStream.Length}");
                 }
 
                 //seeking to start of seed area

@@ -18,6 +18,7 @@ namespace CTR.NET
         public List<NCCHRegion> Regions = new List<NCCHRegion>();
         private MemoryMappedFile NCCHMemoryMappedFile { get; set; }
         private CryptoEngine Cryptor { get; set; }
+        private SeedDatabase SeedDB { get; set; }
         private static readonly string[] NormalCryptoExeFSFiles = new string[] { "icon", "banner" };
 
         private static readonly Dictionary<int, Keyslot> ExtraCryptoKeyslots = new Dictionary<int, Keyslot>()
@@ -35,35 +36,28 @@ namespace CTR.NET
             NCCHSection.PlainRegion
         };
 
-        public NCCH(FileStream ncchStream, CryptoEngine ce = null)
+        public NCCH(FileStream ncchStream, CryptoEngine ce = null, SeedDatabase seedDb = null)
         {
             if (!ncchStream.CanWrite)
             {
                 throw new ArgumentException("Stream must be writable.");
             }
 
-            this.NCCHMemoryMappedFile = MemoryMappedFile.CreateFromFile(ncchStream, null, ncchStream.Length, MemoryMappedFileAccess.ReadWrite, HandleInheritability.Inheritable, true);
-
-            using (MemoryMappedViewStream viewStream = this.NCCHMemoryMappedFile.CreateViewStream(0, 0x200))
-            {
-                this.Info = new NCCHInfo(viewStream.ReadBytes(0x200));
-            }
-
-            this.Regions = new List<NCCHRegion>();
-            this.Cryptor = ce;
-
-            LoadRegions(this.Info.TitleID.ToInt64());
+            Initalize(ncchStream, ce, seedDb);
         }
 
-        public NCCH(string pathToNcch, CryptoEngine ce = null)
+        public NCCH(string pathToNcch, CryptoEngine ce = null, SeedDatabase seedDb = null)
         {
             if (!File.Exists(pathToNcch))
             {
                 throw new FileNotFoundException($"File at {pathToNcch} does not exist.");
             }
 
-            FileStream fs = File.Open(pathToNcch, FileMode.Open, FileAccess.ReadWrite);
+            Initalize(File.Open(pathToNcch, FileMode.Open, FileAccess.ReadWrite), ce, seedDb);
+        }
 
+        private void Initalize(FileStream fs,  CryptoEngine ce = null, SeedDatabase seedDb = null)
+        {
             this.NCCHMemoryMappedFile = MemoryMappedFile.CreateFromFile(fs, null, fs.Length, MemoryMappedFileAccess.ReadWrite, HandleInheritability.Inheritable, true);
 
             using (MemoryMappedViewStream viewStream = this.NCCHMemoryMappedFile.CreateViewStream(0, 0x200))
@@ -73,9 +67,10 @@ namespace CTR.NET
 
             this.Regions = new List<NCCHRegion>();
             this.Cryptor = ce;
+            this.SeedDB = seedDb;
 
-            LoadRegions(this.Info.TitleID.ToInt64());
-        }
+            LoadRegions(this.Info.TitleID);
+        }   
 
         private void LoadRegions(long tid)
         {
@@ -108,25 +103,25 @@ namespace CTR.NET
 
             if (this.Info.Flags.UsesEncryption && decrypt && !NoCryptoSections.Contains(region.Type)) //if encrypted, user wants to decrypt, and the selected region is known to use encryption
             {
-                Keyslot primaryKeyslot = Keyslot.NCCH; //original 0x2C keyslot for decrypting the ExHeader, and files "icon" and "banner" in ExeFS
-                Keyslot secondaryKeyslot = Keyslot.NCCH; //set to 0x2C by default, might be changed by the below switch (based on ncchFlags[3])
+                Keyslot primaryKeyslot;
+                Keyslot secondaryKeyslot;
 
-                switch (this.Info.Flags.CryptoMethod)
+                if (this.Info.Flags.UsesFixedKey)
                 {
-                    case 0x0:
-                        secondaryKeyslot = Keyslot.NCCH;
-                        break;
-                    case 0x01:
-                        secondaryKeyslot = Keyslot.NCCH70;
-                        break;
-                    case 0x0A:
-                        secondaryKeyslot = Keyslot.NCCH93;
-                        break;
-                    case 0x0B:
-                        secondaryKeyslot = Keyslot.NCCH96;
-                        break;
-                    default:
-                        throw new Exception("Could not determine crypto type. This should NOT happen.");
+                    primaryKeyslot = ((this.Info.TitleID & (0x10 << 32)) > 0) ? Keyslot.FixedSystemKey : Keyslot.ZeroKey;
+                    secondaryKeyslot = primaryKeyslot;
+                }
+                else
+                {
+                    primaryKeyslot = Keyslot.NCCH;
+                    secondaryKeyslot = this.Info.Flags.CryptoMethod switch
+                    {
+                        0x00 => Keyslot.NCCH,
+                        0x01 => Keyslot.NCCH70,
+                        0x0A => Keyslot.NCCH93,
+                        0x0B => Keyslot.NCCH96,
+                        _ => throw new Exception("Could not determine crypto type. This should NOT happen.")
+                    };
                 }
 
                 this.Cryptor.SetKeyslot("y", (int)primaryKeyslot, this.Info.KeyY.ToUnsignedBigInt()); //load primary key into keyslot
@@ -135,8 +130,6 @@ namespace CTR.NET
                 {
                     this.Cryptor.SetKeyslot("y", (int)secondaryKeyslot, this.Info.KeyY.ToUnsignedBigInt()); //load secondary key into keyslot
                 }
-
-                Console.WriteLine($"Region is: {region.Type}, offset is: {region.Offset:X}, size is: {region.Size:X}, CTR is: {region.CTR.Hex()}, key is: {this.Cryptor.NormalKey[(int)primaryKeyslot].Hex()}");
 
                 //decrypts based on section
                 switch (region.Type)
@@ -222,12 +215,12 @@ namespace CTR.NET
         public byte[] Signature { get; private set; } //hex
         public string Magic { get; private set; } //UTF-8 plaintext
         public long ContentSize { get; private set; } //in media units
-        public byte[] TitleID { get; private set; } //LE
+        public long TitleID { get; private set; } //LE
         public string MakerCode { get; private set; } //UTF-8 plaintext
         public short VersionNumber { get; private set; } //LE
         public string Version { get; private set; }
         public byte[] SeedVerifyHashPart { get; private set; } //bytes
-        public byte[] ProgramID { get; private set; } //LE
+        public long ProgramID { get; private set; } //LE
         public byte[] LogoRegionHash { get; private set; } //hex
         public ProductCodeInfo ProductCode { get; private set; } //utf-8 string
         public byte[] ExHeaderHash { get; private set; } //hex
@@ -252,12 +245,12 @@ namespace CTR.NET
             this.Signature = ncchHeader.TakeItems(0x0, 0x100);
             this.Magic = ncchHeader.TakeItems(0x100, 0x104).Decode(Encoding.UTF8);
             this.ContentSize = ncchHeader.TakeItems(0x104, 0x108).ToInt32() * 0x200;
-            this.TitleID = ncchHeader.TakeItems(0x108, 0x110);
+            this.TitleID = ncchHeader.TakeItems(0x108, 0x110).ToInt64();
             this.MakerCode = $"{ncchHeader.TakeItems(0x110, 0x112).Hex()} (\"{ncchHeader.TakeItems(0x110, 0x112).Decode(Encoding.UTF8)}\")";
             this.Version = Tools.GetVersion(ncchHeader.TakeItems(0x112, 0x114), out short versionNumber);
             this.SeedVerifyHashPart = ncchHeader.TakeItems(0x114, 0x118);
             this.VersionNumber = versionNumber;
-            this.ProgramID = ncchHeader.TakeItems(0x118, 0x120);
+            this.ProgramID = ncchHeader.TakeItems(0x118, 0x120).ToInt64();
             this.LogoRegionHash = ncchHeader.TakeItems(0x130, 0x150);
             this.ProductCode = new ProductCodeInfo(ncchHeader.TakeItems(0x150, 0x160).Decode(Encoding.UTF8).Trim());
             this.ExHeaderHash = ncchHeader.TakeItems(0x160, 0x180);
@@ -282,10 +275,10 @@ namespace CTR.NET
             return $"NCCH INFO:\n\n" +
                 $"Magic: {this.Magic}\n" +
                 $"Content Size: {this.ContentSize} (0x{this.ContentSize:X}) bytes - {this.ContentSize / (long)1024 / (long)128} blocks\n" +
-                $"Title ID: {this.TitleID.Hex(true)}\n" +
+                $"Title ID: {this.TitleID:X16}\n" +
                 $"Maker Code: {this.MakerCode}\n" +
                 $"Version: {this.Version} ({this.VersionNumber})\n" +
-                $"Program ID: {this.ProgramID.Hex(true)}\n" +
+                $"Program ID: {this.ProgramID:X16}\n" +
                 $"Logo Region Hash: {this.LogoRegionHash.Hex()}\n\n" +
                 $"{this.ProductCode}\n\n" +
                 $"Extended Header Hash: {this.ExHeaderHash.Hex()}\n" +
@@ -329,8 +322,7 @@ namespace CTR.NET
                 {
                     "KTR" => "New Nintendo 3DS (KTR)",
                     "CTR" => "Original (Old) Nintendo 3DS (CTR)",
-                    "TWL" => "Nintendo DSiWare (TWL)",
-                    _ => $"Unknown, \"{productCode.Split("-")[0]}\". report this on GitHub so it can be added."
+                    _ => $"Unknown, \"{productCode.Split("-")[0]}\""
                 };
 
                 this.ContentType = productCode.Split("-")[1] switch
@@ -341,7 +333,7 @@ namespace CTR.NET
                     "M" => "DLC",
                     "H" => "Demo",
                     "B" => "Demo",
-                    _ => $"Unknown, \"{productCode.Split("-")[1]}\". Please report this on GitHub so it can be added."
+                    _ => $"Unknown, \"{productCode.Split("-")[1]}\""
                 };
 
                 this.Region = productCode.Split("-")[2][3] switch
@@ -437,7 +429,6 @@ namespace CTR.NET
             this.UsesEncryption = !((ncchFlags[7] & 0x4) > 0);
             this.UsesSeed = (ncchFlags[7] & 0x20) > 0;
             this.ContentUnitSize = (uint)0x200 * 2 ^ ncchFlags[6];
-
             this.CryptoMethod = ncchFlags[3];
             this.Platform = (ContentPlatform)ncchFlags[4];
 
@@ -463,9 +454,8 @@ namespace CTR.NET
             }
             else if ((ncchFlags[5] & 0x10) != 0)
             {
-                this.ContentType = "Trial";
+                this.ContentType = "Trial (Demo?)";
             }
-
         }
 
         public override string ToString()
@@ -475,7 +465,7 @@ namespace CTR.NET
                 $"Content Platform: {Enum.GetName(typeof(ContentPlatform), this.Platform)}\n" +
                 $"Content Unit Size: {this.ContentUnitSize} (0x{this.ContentUnitSize:X}) bytes\n" +
                 $"Content Type: {this.ContentType}\n" +
-                $"Encrypted: {this.UsesEncryption}" +
+                $"Encrypted: {this.UsesEncryption}\n" +
                 $"Uses Seed: {this.UsesSeed}";
         }
     }

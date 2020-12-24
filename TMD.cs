@@ -46,7 +46,7 @@ namespace CTR.NET
 
                 if (this.SignatureInfo.Size == 0)
                 {
-                    Console.WriteLine("Could not determine Signature Type of TMD.");
+                    throw new ArgumentException("Could not determine Signature Type of TMD.");
                 }
 
                 this.SignatureData = tmdStream.ReadBytes(this.SignatureInfo.Size);
@@ -134,7 +134,6 @@ namespace CTR.NET
 
                         if (hash.Hex() != infoRecord.Hash.Hex())
                         {
-                            Console.WriteLine("\nGot: " + hash.Hex());
                             throw new ArgumentException($"Invalid Info Records Detected.\nExpected: {infoRecord.Hash.Hex()}\nGot: {hash.Hex()}");
                         }
                     }

@@ -70,12 +70,11 @@ namespace CTR.NET
 
             if (output.Length != size)
             {
-                System.Console.WriteLine($"0x{output.Length:X} was set to 0x{size:X}");
                 output.SetLength(size);
             }
         }
 
-        public static void CryptFileStreamPart(MemoryMappedFile input, Stream output, ICryptoTransform transform, long offset, long size)
+        public static void CryptFileStreamPart(MemoryMappedFile input, Stream output, ICryptoTransform transform, long offset, long size, bool closeOutputStream = true)
         {
             using (MemoryMappedViewStream viewStream = input.CreateViewStream(offset, size))
             {
@@ -83,6 +82,9 @@ namespace CTR.NET
                 viewStream.CopyTo(cs);
                 cs.FlushFinalBlock();
             }
+
+            if (closeOutputStream)
+                output.Dispose();
         }
 
         public static byte[] CryptBytes(byte[] bytes, ICryptoTransform transform)
@@ -143,12 +145,10 @@ namespace CTR.NET
 
             try
             {
-                System.Console.WriteLine("wrote unsigned");
                 b.TryWriteBytes(output, out written, true, true);
             }
             catch (Exception)
             {
-                System.Console.WriteLine("wrote signed");
                 b.TryWriteBytes(output, out written, false, true);
             }
 

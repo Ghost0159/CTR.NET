@@ -10,38 +10,12 @@ namespace CTR.NET.Crypto
 {
     public enum Keyslot
     {
-        //TWL Region (TWLNAND, TWL PHOTO, Header)
-        TWLNAND = 0x03,
-
-        //CTRNAND Keyslot for the Original Nintendo 3DS
-        CTRNAND_Old = 0x04,
-
-        //CTRNAND Keyslot for the New Nintendo 3DS
-        CTRNAND_New = 0x05,
-
-        //FIRM Partitions
-        FIRM = 0x06,
-
-        //AGBSAVE Partitions for GBA Virtual Console Titles
-        AGB = 0x07,
-
-        //CMAC for NAND Databases
-        CMACNANDDB = 0x0B,
 
         //Extra NCCH Keyslot for Titles exclusive to the New Nintendo 3DS, released after firmware version 9.3.0-21
         NCCH93 = 0x18,
 
-        //CMAC for New Nintendo 3DS Card Save Data (???)
-        CMACCardSaveNew = 0x19,
-
-        //Card Save Data for New Nintendo 3DS (???)
-        CardSaveNew = 0x1A,
-
         //Extra NCCH Keyslot for Titles exclusive to the New Nintendo 3DS, released after firmware version 9.6.0-24
         NCCH96 = 0x1B,
-
-        //CMAC for AGBSAVE partition contents
-        CMACAGB = 0x24,
 
         //Extra NCCH Keyslot for Titles released after Firmware Version 7.0.0-13
         NCCH70 = 0x25,
@@ -49,41 +23,8 @@ namespace CTR.NET.Crypto
         //Original NCCH Keyslot
         NCCH = 0x2C,
 
-        //UDS Local WLAN (???)
-        UDSLocalWLAN = 0x2D,
-
-        //StreetPass
-        StreetPass = 0x2E,
-
-        //Save Data Decryption Key for games released after Firmware Version 6.0.0-11
-        Save60 = 0x2F,
-
-        //CMAC for SDMC (???)
-        CMACSDNANC = 0x30,
-
-        //CMAC for Card Save Data
-        CMACCardSave = 0x33,
-
-        //SD Contents in SD:/Nintendo 3DS/
-        SD = 0x34,
-
-        //Card Save Data
-        CardSave = 0x37,
-
-        //BOSS
-        BOSS = 0x38,
-
-        //Download Play
-        DownloadPlay = 0x39,
-
-        //DSiWare Exports on the SD card
-        DSiWareExport = 0x3A,
-
         //Common key for title key decryption
         CommonKey = 0x3D,
-
-        //Used for internal operations in boot9, including the decryption of the OTP and FIRM sections from non-NAND sources, and generating console-unique keys
-        Boot9Internal = 0x3F,
 
         //Non-Official
 
@@ -103,7 +44,7 @@ namespace CTR.NET.Crypto
     public class CryptoEngine
     {
         public static readonly byte[] Boot9ProtHash = { 0x73, 0x31, 0xF7, 0xED, 0xEC, 0xE3, 0xDD, 0x33, 0xF2, 0xAB, 0x4B, 0xD0, 0xB3, 0xA5, 0xD6, 0x07, 0x22, 0x9F, 0xD1, 0x92, 0x12, 0xC1, 0x0B, 0x73, 0x4C, 0xED, 0xCA, 0xF7, 0x8C, 0x1A, 0x7B, 0x98 };
-        public static readonly byte[] DevCommonKeyZero = { 55, 0xA3, 0xF8, 0x72, 0xBD, 0xC8, 0x0C, 0x55, 0x5A, 0x65, 0x43, 0x81, 0x13, 0x9E, 0x15, 0x3B };
+        public static readonly byte[] DevCommonKeyZero = { 0x55, 0xA3, 0xF8, 0x72, 0xBD, 0xC8, 0x0C, 0x55, 0x5A, 0x65, 0x43, 0x81, 0x13, 0x9E, 0x15, 0x3B };
         public static readonly BigInteger[] CommonKeyYs = new BigInteger[6]
         {
             //eShop
@@ -136,15 +77,11 @@ namespace CTR.NET.Crypto
         public CryptoEngine(byte[] boot9, bool isDev, bool setupBoot9Keys = true)
         {
             this.KeyX = new Dictionary<int, BigInteger>();
-            this.KeyY = new Dictionary<int, BigInteger>()
-            {
-                { (int)Keyslot.TWLNAND, BigInteger.Parse("E1A00005202DDD1DBD4DC4D30AB9DC76", NumberStyles.HexNumber) },
-                { (int)Keyslot.CTRNAND_New, BigInteger.Parse("4D804F4E9990194613A204AC584460BE", NumberStyles.HexNumber) }
-            };
+            this.KeyY = new Dictionary<int, BigInteger>();
 
             this.NormalKey = new Dictionary<int, byte[]>()
             {
-                { (int)Keyslot.ZeroKey, new byte[16] },
+                { (int)Keyslot.ZeroKey, new byte[16] {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 } },
                 { (int)Keyslot.FixedSystemKey, new byte[16] { 52, 0x7C, 0xE6, 0x30, 0xA9, 0xCA, 0x30, 0x5F, 0x36, 0x96, 0xF3, 0xCD, 0xE9, 0x54, 0x19, 0x4B } }
             };
 
@@ -222,22 +159,12 @@ namespace CTR.NET.Crypto
 
             try
             {
-                if (keyslot < 0x04)
-                {
-                    byte[] generatedKey = KeyScrambler.GenerateTWLNormalKey(this.KeyX[keyslot], this.KeyY[keyslot]).ToByteArray(false, false);
-                    this.NormalKey[keyslot] = (generatedKey.Length > 0x10) ? generatedKey.TakeItems(0x1, generatedKey.Length) : generatedKey;
-                }
-                else
-                {
-                    byte[] generatedKey = KeyScrambler.GenerateCTRNormalKey(this.KeyX[keyslot], this.KeyY[keyslot]).ToByteArray(false, true);
-                    this.NormalKey[keyslot] = (generatedKey.Length > 0x10) ? generatedKey.TakeItems(0x1, generatedKey.Length) : generatedKey;
-                }
+                byte[] generatedKey = KeyScrambler.GenerateCTRNormalKey(this.KeyX[keyslot], this.KeyY[keyslot]).ToByteArray(false, true);
+                this.NormalKey[keyslot] = (generatedKey.Length > 0x10) ? generatedKey.TakeItems(0x1, generatedKey.Length) : generatedKey;
             }
-            catch (Exception e)
+            catch (Exception)
             {
-                Console.WriteLine("Error when trying to generate Normal Key.");
-                Console.WriteLine(e.Message);
-                Console.WriteLine(e.StackTrace);
+                throw;
             }
         }
 
@@ -276,7 +203,7 @@ namespace CTR.NET.Crypto
             {
                 cbcCipher.Key = this.NormalKey[(int)Keyslot.CommonKey];
                 cbcCipher.Mode = CipherMode.CBC;
-                cbcCipher.IV = titleId.MergeWith(new byte[8]);
+                cbcCipher.IV = titleId.PadRight(0x00, 16);
                 cbcCipher.Padding = PaddingMode.Zeros;
 
                 using (MemoryStream ms = new MemoryStream())
@@ -291,6 +218,5 @@ namespace CTR.NET.Crypto
                 }
             }
         }
-
     }
 }

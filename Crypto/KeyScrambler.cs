@@ -15,9 +15,6 @@ namespace CTR.NET.Crypto
         //3DS (CTR) Constant
         public static readonly BigInteger C1 = "1FF9E9AAC5FE0408024591DC5D52768A".HexToByteArray().ToUnsignedBigInt();
 
-        //DSi (TWL) Constant
-        public static readonly BigInteger C2 = "FFFEFB4E295902582A680F5F1A4F3E79".HexToByteArray().ToUnsignedBigInt();
-
         public static byte[] XORBytes(byte[] firstArray, byte[] secondArray)
         {
             if (firstArray.Length != secondArray.Length)
@@ -71,13 +68,6 @@ namespace CTR.NET.Crypto
             BigInteger key = BigInteger.Add(XORBytes(RotateByteArray(keyX.ToBytes(), ArrayRotationDirection.Left, 2), keyY.ToBytes()).ToUnsignedBigInt(), C1);
 
             return RotateByteArray(key.ToBytes(), ArrayRotationDirection.Right, 41).ToUnsignedBigInt();
-        }
-
-        public static BigInteger GenerateTWLNormalKey(BigInteger keyX, BigInteger keyY)
-        {
-            BigInteger key = BigInteger.Add(XORBytes(keyX.ToBytes(), keyY.ToBytes()).ToUnsignedBigInt(), C2);
-
-            return RotateByteArray(key.ToBytes(), ArrayRotationDirection.Left, 42).ToUnsignedBigInt();
         }
     }
 }

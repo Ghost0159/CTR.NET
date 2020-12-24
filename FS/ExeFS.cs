@@ -191,7 +191,6 @@ namespace CTR.NET.FS
 
                         if (!Enumerable.SequenceEqual(entry.Hash, calculatedHash))
                         {
-                            Console.WriteLine($"Expected: {entry.Hash.Hex()}, got: {calculatedHash.Hex()}");
                             return false;
                         }
                     }

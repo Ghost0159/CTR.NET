@@ -1,7 +1,2 @@
-*.exe
-/.vs/*
 /bin/*
 /obj/*
-/pyctr/*
-TWL.cs
-
