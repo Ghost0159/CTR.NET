@@ -13,12 +13,7 @@ namespace CTR.NET
 
         public NCSD(FileStream ncsdStream)
         {
-            this.NCSDMemoryMappedFile = MemoryMappedFile.CreateFromFile(ncsdStream, null, ncsdStream.Length, MemoryMappedFileAccess.ReadWrite, HandleInheritability.Inheritable, true);
-
-            using (MemoryMappedViewStream viewStream = this.NCSDMemoryMappedFile.CreateViewStream(0, ncsdStream.Length))
-            {
-                this.Info = new NCSDInfo(viewStream);
-            }
+            Load(ncsdStream);
         }
 
         public NCSD(string pathToNcsd)
@@ -26,13 +21,16 @@ namespace CTR.NET
             if (!File.Exists(pathToNcsd))
                 throw new ArgumentException("The specified file was not found.");
 
-            FileStream fs = File.Open(pathToNcsd, FileMode.Open, FileAccess.ReadWrite);
+            Load(File.Open(pathToNcsd, FileMode.Open, FileAccess.ReadWrite));
+        }
 
+        private void Load(FileStream fs)
+        {
             this.NCSDMemoryMappedFile = MemoryMappedFile.CreateFromFile(fs, null, fs.Length, MemoryMappedFileAccess.ReadWrite, HandleInheritability.Inheritable, true);
 
-            using (MemoryMappedViewStream viewStream = this.NCSDMemoryMappedFile.CreateViewStream(0, fs.Length))
+            using (MemoryMappedViewStream viewStream = this.NCSDMemoryMappedFile.CreateViewStream(0x100, 0x100))
             {
-                this.Info = new NCSDInfo(viewStream);
+                this.Info = new NCSDInfo(viewStream.ReadBytes(0x100));
             }
         }
 
@@ -83,10 +81,8 @@ namespace CTR.NET
         public List<NCSDPartition> Partitions { get; private set; }
         public byte[] MediaId { get; private set; }
 
-        public NCSDInfo(Stream ncsdStream)
+        public NCSDInfo(byte[] header)
         {
-            byte[] header = ncsdStream.SeekReadBytes(0x100, SeekOrigin.Begin, 0x100);
-
             if (header.TakeItems(0x0, 0x4).Hex() != "4E435344") //if header at 0x0-0x4 isn't 'NCSD'
             {
                 throw new ArgumentException("NCSD magic not found in header of specified file.");

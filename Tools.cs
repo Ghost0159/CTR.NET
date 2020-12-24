@@ -448,5 +448,13 @@ namespace CTR.NET
                 list.Add(region);
             }
         }
+
+        public static void AddIfExists(this List<CIARegion> list, CIARegion region)
+        {
+            if (region.Size != 0)
+            {
+                list.Add(region);
+            }
+        }
     }
 }

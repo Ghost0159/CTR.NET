@@ -63,7 +63,7 @@ namespace CTR.NET
                 throw new ArgumentException($"The specified CIA does not contain content {contentRecord.GetContentName()}");
             }
 
-            long offset = this.Info.Sections.Contents.Offset;
+            long offset = this.Info.Regions.Find(r => r.Type == CIASection.Contents).Offset;
 
             for (int i = 0; i < this.Info.ActiveContents.Count; i++)
             {
@@ -125,14 +125,14 @@ namespace CTR.NET
     {
         public static int AlignSize = 64;
         public List<ContentChunkRecord> ActiveContents { get; private set; }
-        public CIASections Sections { get; private set; }
+        public List<CIARegion> Regions { get; private set; }
         public TicketInfo TicketData { get; private set; }
         public TMDInfo TMD { get; private set; }
         private string FilePath { get; set; }
 
-        public CIAInfo(Stream cia)
+        public CIAInfo(Stream ciaStream)
         {
-            byte[] header = cia.ReadBytes(0x20);
+            byte[] header = ciaStream.ReadBytes(0x20);
 
             short archiveHeaderSize = header.TakeItems(0x0, 0x2).ToInt16();
 
@@ -147,7 +147,7 @@ namespace CTR.NET
             int metaSize = header.TakeItems(0x14, 0x18).ToInt32();
             long contentSize = header.TakeItems(0x18, 0x20).ToInt64();
 
-            byte[] contentIndex = cia.ReadBytes(0x2000);
+            byte[] contentIndex = ciaStream.ReadBytes(0x2000);
 
             List<short> ActiveContents = new List<short>();
 
@@ -176,13 +176,13 @@ namespace CTR.NET
             List<short> ActiveContentsInTmd = new List<short>();
             this.ActiveContents = new List<ContentChunkRecord>();
 
-            cia.Seek(tmdOffset, SeekOrigin.Begin);
+            ciaStream.Seek(tmdOffset, SeekOrigin.Begin);
 
-            this.TMD = new TMDInfo(cia.ReadBytes(tmdSize));
+            this.TMD = new TMDInfo(ciaStream.ReadBytes(tmdSize));
 
-            cia.Seek(ticketOffset, SeekOrigin.Begin);
+            ciaStream.Seek(ticketOffset, SeekOrigin.Begin);
 
-            this.TicketData = new TicketInfo(cia.ReadBytes(ticketSize));
+            this.TicketData = new TicketInfo(ciaStream.ReadBytes(ticketSize));
 
             foreach (ContentChunkRecord ccr in this.TMD.ContentChunkRecords)
             {
@@ -200,18 +200,14 @@ namespace CTR.NET
                 throw new ArgumentException("Invalid CIA Detected, contents defined in TMD do not match the contents defined in CIA.");
             }
 
-            this.Sections = new CIASections(
-                new CIASection("Archive Header", 0x0, archiveHeaderSize),
-                new CIASection("Certificate Chain", certChainOffset, certChainSize),
-                new CIASection("Ticket", ticketOffset, ticketSize),
-                new CIASection("Title Metadata", tmdOffset, tmdSize),
-                new CIASection("Contents", contentOffset, contentSize),
-                new CIASection("Meta", metaOffset, metaSize)
-                );
+            this.Regions = new List<CIARegion>();
 
-            long ncchOffset = this.Sections.Contents.Offset;
-
-            cia.Seek(0, SeekOrigin.Begin);
+            this.Regions.AddIfExists(new CIARegion(CIASection.ArchiveHeader, 0x0, archiveHeaderSize));
+            this.Regions.AddIfExists(new CIARegion(CIASection.CertificateChain, certChainOffset, certChainSize));
+            this.Regions.AddIfExists(new CIARegion(CIASection.Ticket, ticketOffset, ticketSize));
+            this.Regions.AddIfExists(new CIARegion(CIASection.TitleMetadata, tmdOffset, tmdSize));
+            this.Regions.AddIfExists(new CIARegion(CIASection.Contents, contentOffset, contentSize));
+            this.Regions.AddIfExists(new CIARegion(CIASection.Meta, metaOffset, metaSize));
         }
 
         public static TMDInfo GetTMD(byte[] header)
@@ -228,42 +224,32 @@ namespace CTR.NET
         }
     }
 
-    public class CIASections
+    public class CIARegion
     {
-        public CIASection ArchiveHeader { get; protected set; }
-        public CIASection CertificateChain { get; private set; }
-        public CIASection Ticket { get; private set; }
-        public CIASection TMD { get; private set; }
-        public CIASection Contents { get; private set; }
-        public CIASection Meta { get; private set; }
-
-        public CIASections(CIASection archiveHeader, CIASection certChain, CIASection ticket, CIASection tmd, CIASection contents, CIASection meta)
-        {
-            this.ArchiveHeader = archiveHeader;
-            this.CertificateChain = certChain;
-            this.Ticket = ticket;
-            this.TMD = tmd;
-            this.Contents = contents;
-            this.Meta = meta;
-        }
-    }
-
-    public class CIASection
-    {
-        public string SectionName { get; private set; }
+        public CIASection Type { get; set; }
         public long Offset { get; private set; }
         public long Size { get; private set; }
 
-        public CIASection(string sectionName, long offset, long size)
+        public CIARegion(CIASection type, long offset, long size)
         {
-            SectionName = sectionName;
-            Offset = offset;
-            Size = size;
+            this.Type = type;
+            this.Offset = offset;
+            this.Size = size;
         }
 
         public override string ToString()
         {
-            return $"SECTION {SectionName.ToUpper()}:\n\nOffset: 0x{Offset.ToString("X").ToUpper()}-0x{(Offset + Size).ToString("X").ToUpper()}\nSize: {Size} (0x{Size.ToString("X").ToUpper()}) bytes";
+            return $"SECTION {Enum.GetName(typeof(CIASection), this.Type)}:\n\nOffset: 0x{Offset.ToString("X").ToUpper()}-0x{(Offset + Size).ToString("X").ToUpper()}\nSize: {Size} (0x{Size.ToString("X").ToUpper()}) bytes";
         }
+    }
+
+    public enum CIASection
+    {
+        ArchiveHeader = 0,
+        CertificateChain = 1,
+        Ticket = 2,
+        TitleMetadata = 3,
+        Contents = 4,
+        Meta = 5
     }
 }
