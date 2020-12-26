@@ -4,12 +4,6 @@ namespace CTR.NET.Crypto
 {
     public static class KeyScrambler
     {
-        public enum ArrayRotationDirection
-        {
-            Left = 0,
-            Right = 1
-        }
-
         //3DS (CTR) Constant
         public static readonly BigInteger C1 = "1FF9E9AAC5FE0408024591DC5D52768A".HexToByteArray().ToUnsignedBigInt();
 
