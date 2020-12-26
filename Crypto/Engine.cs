@@ -159,8 +159,7 @@ namespace CTR.NET.Crypto
 
             try
             {
-                byte[] generatedKey = KeyScrambler.GenerateCTRNormalKey(this.KeyX[keyslot], this.KeyY[keyslot]).ToByteArray(false, true);
-                this.NormalKey[keyslot] = (generatedKey.Length > 0x10) ? generatedKey.TakeItems(0x1, generatedKey.Length) : generatedKey;
+                this.NormalKey[keyslot] = KeyScrambler.GenerateCTRNormalKey(this.KeyX[keyslot], this.KeyY[keyslot]);
             }
             catch (Exception)
             {
