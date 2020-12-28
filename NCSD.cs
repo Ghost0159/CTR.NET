@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.MemoryMappedFiles;
 using System.Linq;
+using CTR.NET.Crypto;
 
 namespace CTR.NET
 {
@@ -26,7 +27,7 @@ namespace CTR.NET
 
         private void Load(FileStream fs)
         {
-            this.NCSDMemoryMappedFile = MemoryMappedFile.CreateFromFile(fs, null, fs.Length, MemoryMappedFileAccess.ReadWrite, HandleInheritability.Inheritable, true);
+            this.NCSDMemoryMappedFile = Tools.LoadFileMapped(fs);
 
             using (MemoryMappedViewStream viewStream = this.NCSDMemoryMappedFile.CreateViewStream(0x100, 0x100))
             {
@@ -67,6 +68,58 @@ namespace CTR.NET
             using (outputStream)
             {
                 Tools.ExtractFileStreamPart(this.NCSDMemoryMappedFile, outputStream, section.Offset, section.Size);
+            }
+        }
+
+        public void Decrypt(FileStream outputStream, CryptoEngine ce = null, SeedDatabase seedDb = null, bool trim = true)
+        {
+            long size;
+
+            if (!trim)
+            {
+                outputStream.SetLength(this.Info.ImageSize);
+            }
+            else 
+            {
+                size = this.Info.Partitions[0].Offset;
+
+                foreach (NCSDPartition partition in this.Info.Partitions)
+                {
+                    size += partition.Size;
+                }
+
+                outputStream.SetLength(size);
+            }
+
+            outputStream.Seek(0, SeekOrigin.Begin);
+
+            MemoryMappedFile outputFile = Tools.LoadFileMapped(outputStream);
+
+            using (MemoryMappedViewStream srcHeaderViewStream = this.NCSDMemoryMappedFile.CreateViewStream(0x0, this.Info.Partitions[0].Offset))
+            {
+                using (MemoryMappedViewStream destHeaderViewStream = outputFile.CreateViewStream(0x0, this.Info.Partitions[0].Offset))
+                {
+                    srcHeaderViewStream.CopyTo(destHeaderViewStream);
+                    destHeaderViewStream.Seek(0x1188, SeekOrigin.Begin);
+
+                    byte[] flags = destHeaderViewStream.ReadBytes(0x8);
+                    flags[3] = 0x0;
+                    flags[7] = 0x4;
+
+                    destHeaderViewStream.Seek(0x1188, SeekOrigin.Begin);
+                    destHeaderViewStream.Write(flags);
+
+                }
+            }
+
+            foreach (NCSDPartition partition in this.Info.Partitions)
+            {
+                using (MemoryMappedViewStream destPartitionViewStream = outputFile.CreateViewStream(partition.Offset, partition.Size))
+                {
+                    NCCH ncch = new NCCH(this.NCSDMemoryMappedFile, partition.Offset, ce, seedDb);
+
+                    ncch.Decrypt(outputFile);
+                }
             }
         }
 
@@ -158,9 +211,9 @@ namespace CTR.NET
         Application = 0,
         Manual = 1,
         DownloadPlayChild = 2,
-        Unknown3 = 3,
-        Unknown4 = 4,
-        Unknown5 = 5,
+        Partition3 = 3,
+        Partition4 = 4,
+        Partition5 = 5,
         UpdateNew3DS = 6,
         UpdateOld3DS = 7
     }

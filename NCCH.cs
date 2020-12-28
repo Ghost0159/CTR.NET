@@ -14,6 +14,7 @@ namespace CTR.NET
 {
     public class NCCH : IDisposable
     {
+        private long DataStart { get; set; } = 0;
         public NCCHInfo Info { get; private set; }
         public List<NCCHRegion> Regions = new List<NCCHRegion>();
         private MemoryMappedFile NCCHMemoryMappedFile { get; set; }
@@ -43,7 +44,9 @@ namespace CTR.NET
                 throw new ArgumentException("Stream must be writable.");
             }
 
-            Initalize(ncchStream, ce, seedDb);
+            this.NCCHMemoryMappedFile = Tools.LoadFileMapped(ncchStream);
+
+            Load(ce, seedDb);
         }
 
         public NCCH(string pathToNcch, CryptoEngine ce = null, SeedDatabase seedDb = null)
@@ -53,14 +56,22 @@ namespace CTR.NET
                 throw new FileNotFoundException($"File at {pathToNcch} does not exist.");
             }
 
-            Initalize(File.Open(pathToNcch, FileMode.Open, FileAccess.ReadWrite), ce, seedDb);
+            this.NCCHMemoryMappedFile = Tools.LoadFileMapped(File.Open(pathToNcch, FileMode.Open, FileAccess.ReadWrite));
+
+            Load(ce, seedDb);
         }
 
-        private void Initalize(FileStream fs,  CryptoEngine ce = null, SeedDatabase seedDb = null)
+        public NCCH(MemoryMappedFile ncch, long dataStart, CryptoEngine ce = null, SeedDatabase seedDb = null)
         {
-            this.NCCHMemoryMappedFile = MemoryMappedFile.CreateFromFile(fs, null, fs.Length, MemoryMappedFileAccess.ReadWrite, HandleInheritability.Inheritable, true);
+            this.DataStart = dataStart;
+            this.NCCHMemoryMappedFile = ncch;
 
-            using (MemoryMappedViewStream viewStream = this.NCCHMemoryMappedFile.CreateViewStream(0, 0x200))
+            Load(ce, seedDb);
+        }
+
+        private void Load(CryptoEngine ce = null, SeedDatabase seedDb = null)
+        {
+            using (MemoryMappedViewStream viewStream = this.NCCHMemoryMappedFile.CreateViewStream(this.DataStart, 0x200))
             {
                 this.Info = new NCCHInfo(viewStream.ReadBytes(0x200));
             }
@@ -70,24 +81,30 @@ namespace CTR.NET
             this.SeedDB = seedDb;
 
             LoadRegions(this.Info.TitleID);
-        }   
+        }
+
+
 
         private void LoadRegions(long tid)
         {
             // ExHeader, ExeFS, RomFS - use crypto
 
-            this.Regions.AddIfExists(new NCCHRegion(NCCHSection.ExHeader, 0x200, 0x800, tid));
-            this.Regions.AddIfExists(new NCCHRegion(NCCHSection.ExeFS, this.Info.ExeFSOffset, this.Info.ExeFSSize, tid));
-            this.Regions.AddIfExists(new NCCHRegion(NCCHSection.RomFS, this.Info.RomFSOffset, this.Info.RomFSSize, tid));
+            if (this.Info.Flags.IsExecutable)
+            {
+                this.Regions.AddIfExists(new NCCHRegion(NCCHSection.ExHeader, this.DataStart + 0x200, 0x800, tid));
+            }
+
+            this.Regions.AddIfExists(new NCCHRegion(NCCHSection.ExeFS, this.DataStart + this.Info.ExeFSOffset, this.Info.ExeFSSize, tid));
+            this.Regions.AddIfExists(new NCCHRegion(NCCHSection.RomFS, this.DataStart + this.Info.RomFSOffset, this.Info.RomFSSize, tid));
 
             // Header, Logo, Plain - no crypto
 
-            this.Regions.AddIfExists(new NCCHRegion(NCCHSection.Header, 0x0, 0x200));
-            this.Regions.AddIfExists(new NCCHRegion(NCCHSection.Logo, this.Info.LogoRegionOffset, this.Info.LogoRegionSize));
-            this.Regions.AddIfExists(new NCCHRegion(NCCHSection.PlainRegion, this.Info.PlainRegionOffset, this.Info.PlainRegionSize));
+            this.Regions.AddIfExists(new NCCHRegion(NCCHSection.Header, this.DataStart, 0x200));
+            this.Regions.AddIfExists(new NCCHRegion(NCCHSection.Logo, this.DataStart + this.Info.LogoRegionOffset, this.Info.LogoRegionSize));
+            this.Regions.AddIfExists(new NCCHRegion(NCCHSection.PlainRegion, this.DataStart + this.Info.PlainRegionOffset, this.Info.PlainRegionSize));
         }
 
-        public void ExtractSection(NCCHSection section, Stream outputStream, bool decrypt = true)
+        public void ExtractSection(NCCHSection section, Stream outputStream, bool decrypt = true, bool close = true)
         {
             if (this.Info.Flags.UsesEncryption && this.Cryptor == null && decrypt == true)
             {
@@ -135,30 +152,30 @@ namespace CTR.NET
                 switch (region.Type)
                 {
                     case NCCHSection.ExHeader:
-                        Tools.CryptFileStreamPart(this.NCCHMemoryMappedFile, outputStream, new AesCtrCryptoTransform(this.Cryptor.NormalKey[(int)primaryKeyslot], region.CTR), region.Offset, region.Size);
+                        Tools.CryptFileStreamPart(this.NCCHMemoryMappedFile, outputStream, new AesCtrCryptoTransform(this.Cryptor.NormalKey[(int)primaryKeyslot], region.CTR), region.Offset, region.Size, close);
                         break;
                     case NCCHSection.RomFS:
                         //uses secondary keyslot for it's entirety
-                        Tools.CryptFileStreamPart(this.NCCHMemoryMappedFile, outputStream, new AesCtrCryptoTransform(this.Cryptor.NormalKey[(int)secondaryKeyslot], region.CTR), region.Offset, region.Size);
+                        Tools.CryptFileStreamPart(this.NCCHMemoryMappedFile, outputStream, new AesCtrCryptoTransform(this.Cryptor.NormalKey[(int)secondaryKeyslot], region.CTR), region.Offset, region.Size, close);
                         break;
                     case NCCHSection.ExeFS:
                         //can use two keyslots. because of this, I separated the ExeFS decryption into another method
-                        ExtractExeFS(outputStream, region, secondaryKeyslot);
+                        ExtractExeFS(outputStream, region, secondaryKeyslot, close);
                         break;
                 }
             }
             else //just extract the raw section, because no crypto is used or the user did not request decryption
             {
-                Tools.ExtractFileStreamPart(this.NCCHMemoryMappedFile, outputStream, region.Offset, region.Size);
+                Tools.ExtractFileStreamPart(this.NCCHMemoryMappedFile, outputStream, region.Offset, region.Size, close);
             }
         }
 
-        private void ExtractExeFS(Stream output, NCCHRegion region, Keyslot secondaryKeyslot)
+        private void ExtractExeFS(Stream output, NCCHRegion region, Keyslot secondaryKeyslot, bool close = true)
         {
             if (secondaryKeyslot == Keyslot.NCCH)
             {
                 //if the secondary keyslot is also the original 0x2C NCCH Keyslot, don't bother decrypting anything in parts, and just shove the entire ExeFS through a CryptoStream
-                Tools.CryptFileStreamPart(this.NCCHMemoryMappedFile, output, new AesCtrCryptoTransform(this.Cryptor.NormalKey[(int)Keyslot.NCCH], region.CTR), region.Offset, region.Size);
+                Tools.CryptFileStreamPart(this.NCCHMemoryMappedFile, output, new AesCtrCryptoTransform(this.Cryptor.NormalKey[(int)Keyslot.NCCH], region.CTR), region.Offset, region.Size, close);
                 return;
             }
 
@@ -177,30 +194,71 @@ namespace CTR.NET
             ExeFS exefs = new ExeFS(header);
 
             //write decrypted header to output file
-            using (output)
+            foreach (ExeFSEntry entry in exefs.Entries)
             {
-                foreach (ExeFSEntry entry in exefs.Entries)
+                byte[] CTR = (region.CTRInt + (entry.Offset / 16)).ToCTRBytes();
+
+                AesCtrCryptoTransform transform = (NormalCryptoExeFSFiles.Contains(entry.Name)) ? new AesCtrCryptoTransform(this.Cryptor.NormalKey[(int)Keyslot.NCCH], CTR) : new AesCtrCryptoTransform(this.Cryptor.NormalKey[(int)secondaryKeyslot], CTR);
+
+                using (MemoryMappedViewStream fileViewStream = this.NCCHMemoryMappedFile.CreateViewStream(region.Offset + entry.Offset, entry.Size))
                 {
-                    byte[] CTR = (region.CTRInt + (entry.Offset / 16)).ToCTRBytes();
+                    CryptoStream cs = new CryptoStream(output, transform, CryptoStreamMode.Write);
 
-                    AesCtrCryptoTransform transform = (NormalCryptoExeFSFiles.Contains(entry.Name)) ? new AesCtrCryptoTransform(this.Cryptor.NormalKey[(int)Keyslot.NCCH], CTR) : new AesCtrCryptoTransform(this.Cryptor.NormalKey[(int)secondaryKeyslot], CTR);
+                    output.Seek(entry.Offset, SeekOrigin.Begin);
 
-                    using (MemoryMappedViewStream fileViewStream = this.NCCHMemoryMappedFile.CreateViewStream(region.Offset + entry.Offset, entry.Size))
-                    {
-                        CryptoStream cs = new CryptoStream(output, transform, CryptoStreamMode.Write);
+                    fileViewStream.CopyTo(cs);
 
-                        output.Seek(entry.Offset, SeekOrigin.Begin);
-
-                        fileViewStream.CopyTo(cs);
-
-                        cs.FlushFinalBlock();
-                    }
+                    cs.FlushFinalBlock();
                 }
+            }
 
-                //sneaky way to make it gm9-like
+            //sneaky way to make it gm9-like
 
+            if (!(output.GetType() == typeof(MemoryMappedViewStream)))
+            {
                 output.SetLength(Tools.RoundUp(output.Length, 0x200));
             }
+
+            if (close)
+            {
+                output.Dispose();
+            }
+        }
+
+        public void Decrypt(MemoryMappedFile outputFile)
+        {
+            foreach (NCCHRegion region in this.Regions)
+            {
+                using (MemoryMappedViewStream destRegionViewStream = outputFile.CreateViewStream(region.Offset, region.Size))
+                {
+                    if (region.Type == NCCHSection.Header)
+                    {
+                        this.ExtractSection(region.Type, destRegionViewStream, true, false);
+
+                        destRegionViewStream.Seek(0x188, SeekOrigin.Begin);
+
+                        byte[] flags = destRegionViewStream.ReadBytes(0x8);
+                        flags[3] = 0x0;
+                        flags[7] |= (0x1 << 0x2);
+
+                        destRegionViewStream.Seek(0x188, SeekOrigin.Begin);
+                        destRegionViewStream.Write(flags);
+                        destRegionViewStream.Dispose();
+                    }
+                    else
+                    {
+                        this.ExtractSection(region.Type, destRegionViewStream);
+                    }
+                }
+            }
+        }
+
+        public void Decrypt(FileStream fs)
+        {
+            fs.SetLength(this.Info.ContentSize);
+            fs.Seek(0, SeekOrigin.Begin);
+
+            Decrypt(Tools.LoadFileMapped(fs));
         }
 
         public void Dispose()
@@ -210,6 +268,7 @@ namespace CTR.NET
     }
     public class NCCHInfo
     {
+        private long Size { get; set; }
         public byte[] RawHeader { get; private set; }
         public byte[] KeyY { get; private set; }
         public byte[] Signature { get; private set; } //hex

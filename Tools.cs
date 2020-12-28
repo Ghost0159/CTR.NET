@@ -41,13 +41,15 @@ namespace CTR.NET
             }
         }
 
-        public static void ExtractFileStreamPart(MemoryMappedFile input, Stream output, long offset, long size)
+        public static void ExtractFileStreamPart(MemoryMappedFile input, Stream output, long offset, long size, bool close = true)
         {
             using (MemoryMappedViewStream viewStream = input.CreateViewStream(offset, size))
             {
-                using (output)
+                viewStream.CopyTo(output);
+
+                if (close)
                 {
-                    viewStream.CopyTo(output);
+                    output.Dispose();
                 }
             }
         }
@@ -130,9 +132,8 @@ namespace CTR.NET
 
                 return hash;
             }
-
-
         }
+        public static MemoryMappedFile LoadFileMapped(FileStream fs) => MemoryMappedFile.CreateFromFile(fs, null, 0, MemoryMappedFileAccess.ReadWrite, HandleInheritability.Inheritable, true);
     }
 
     public static class ExtensionMethods

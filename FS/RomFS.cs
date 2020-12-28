@@ -70,7 +70,7 @@ namespace CTR.NET.FS
 
         private void Load(FileStream romfsStream, bool caseInsensitive)
         {
-            this.RomFSMemoryMappedFile = MemoryMappedFile.CreateFromFile(romfsStream, null, romfsStream.Length, MemoryMappedFileAccess.ReadWrite, HandleInheritability.Inheritable, false );
+            this.RomFSMemoryMappedFile = Tools.LoadFileMapped(romfsStream);
             this.IsCaseInsensitive = caseInsensitive;
             this.LV3Offset = 0;
             this.TotalSize = 0;

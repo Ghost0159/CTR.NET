@@ -22,7 +22,7 @@ namespace CTR.NET
                 throw new ArgumentException("Stream must be writable.");
             }
 
-            this.CIAMemoryMappedFile = MemoryMappedFile.CreateFromFile(cia, null, cia.Length, MemoryMappedFileAccess.ReadWrite, HandleInheritability.Inheritable, true);
+            this.CIAMemoryMappedFile = Tools.LoadFileMapped(cia);
 
             using (MemoryMappedViewStream viewStream = this.CIAMemoryMappedFile.CreateViewStream(0, cia.Length))
             {
@@ -39,11 +39,9 @@ namespace CTR.NET
                 throw new FileNotFoundException($"File at {pathToCIA} does not exist.");
             }
 
-            FileStream fs = File.Open(pathToCIA, FileMode.Open, FileAccess.ReadWrite);
+            this.CIAMemoryMappedFile = Tools.LoadFileMapped(File.Open(pathToCIA, FileMode.Open, FileAccess.ReadWrite));
 
-            this.CIAMemoryMappedFile = MemoryMappedFile.CreateFromFile(fs, null, fs.Length, MemoryMappedFileAccess.ReadWrite, HandleInheritability.Inheritable, true);
-
-            using (MemoryMappedViewStream viewStream = this.CIAMemoryMappedFile.CreateViewStream(0, fs.Length))
+            using (MemoryMappedViewStream viewStream = this.CIAMemoryMappedFile.CreateViewStream())
             {
                 this.Info = new CIAInfo(viewStream);
             }
