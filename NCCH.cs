@@ -242,8 +242,8 @@ namespace CTR.NET
 
                         byte[] flags = destRegionViewStream.ReadBytes(0x8);
 
-                        flags[3] = 0x0;
-                        flags[7] |= (0x1 << 0x2);
+                        flags[3] = 0x00;
+                        flags[7] = 0x04;
 
                         destRegionViewStream.Seek(0x188, SeekOrigin.Begin);
                         destRegionViewStream.Write(flags);
