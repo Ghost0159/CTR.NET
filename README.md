@@ -19,4 +19,4 @@ Features:
 - NCCH (.cxi/.cfa) Decryption and Extraction of contents, Header Information
 - ExeFS (.exefs) Extraction and Creation (maybe .code decompression soon)
 - RomFS (.romfs) Extraction
-- Crypto Engine that is able to decrypt NCSD, NCCH, CIA (only CIA level decryption, not NCCH \[yet\]) containers
+- Crypto Engine that is able to decrypt CDN Contents, NCSD, NCCH, and CIA (only CIA level decryption, not NCCH \[yet\]) containers
