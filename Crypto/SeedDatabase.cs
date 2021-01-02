@@ -6,7 +6,7 @@ namespace CTR.NET.Crypto
 {
     public class SeedDatabase
     {
-        public List<SeedEntry> Seeds { get; private set; }
+        public Dictionary<long, byte[]> Seeds { get; private set; }
 
         public SeedDatabase(string pathToSeedDatabase)
         {
@@ -14,14 +14,16 @@ namespace CTR.NET.Crypto
             {
                 throw new FileNotFoundException($"File at {pathToSeedDatabase} was not found.");
             }
-
-            this.Seeds = new List<SeedEntry>();
+            
+            this.Seeds = new Dictionary<long, byte[]>();
 
             ReadSeeds(File.OpenRead(pathToSeedDatabase));
         }
 
         public SeedDatabase(Stream seedDatabaseStream)
         {
+            this.Seeds = new Dictionary<long, byte[]>();
+
             ReadSeeds(seedDatabaseStream);
         }
 
@@ -30,8 +32,6 @@ namespace CTR.NET.Crypto
             using (seedDatabaseStream)
             {
                 short titleAmount = seedDatabaseStream.ReadBytes(2).ToInt16();
-
-                this.Seeds = new List<SeedEntry>(titleAmount);
 
                 if (seedDatabaseStream.Length != 0x10 + titleAmount * 0x20)
                 {
@@ -43,23 +43,14 @@ namespace CTR.NET.Crypto
 
                 for (long i = seedDatabaseStream.Position; i < seedDatabaseStream.Position + titleAmount * 0x20; i += 0x20)
                 {
-                    this.Seeds.Add(new SeedEntry(seedDatabaseStream.ReadBytes(0x8), seedDatabaseStream.ReadBytes(0x10)));
+                    long tid = seedDatabaseStream.ReadBytes(0x8).ToInt64();
+                    byte[] seed = seedDatabaseStream.ReadBytes(0x10);
+
+                    this.Seeds[tid] = seed;
 
                     seedDatabaseStream.ReadBytes(0x8);
                 }
             }
-        }
-    }
-
-    public class SeedEntry
-    {
-        public byte[] TitleID { get; private set; }
-        public byte[] Seed { get; private set; }
-
-        public SeedEntry(byte[] titleId, byte[] seed)
-        {
-            this.TitleID = titleId;
-            this.Seed = seed;
         }
     }
 }

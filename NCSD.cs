@@ -11,18 +11,26 @@ namespace CTR.NET
     {
         public NCSDInfo Info { get; private set; }
         private MemoryMappedFile NCSDMemoryMappedFile { get; set; }
+        private CryptoEngine Cryptor { get; set; }
+        private SeedDatabase SeedDatabase { get; set; }
 
-        public NCSD(FileStream ncsdStream)
+        public NCSD(FileStream ncsdStream, CryptoEngine ce = null, SeedDatabase seedDb = null)
         {
             Load(ncsdStream);
+
+            this.Cryptor = ce;
+            this.SeedDatabase = seedDb;
         }
 
-        public NCSD(string pathToNcsd)
+        public NCSD(string pathToNcsd, CryptoEngine ce = null, SeedDatabase seedDb = null)
         {
             if (!File.Exists(pathToNcsd))
                 throw new ArgumentException("The specified file was not found.");
 
             Load(File.Open(pathToNcsd, FileMode.Open, FileAccess.ReadWrite));
+
+            this.Cryptor = ce;
+            this.SeedDatabase = seedDb;
         }
 
         private void Load(FileStream fs)
@@ -71,15 +79,20 @@ namespace CTR.NET
             }
         }
 
-        public void Decrypt(FileStream outputStream, CryptoEngine ce = null, SeedDatabase seedDb = null, bool trim = true)
+        public void Decrypt(FileStream outputStream, bool trim = true)
         {
+            if (this.Cryptor == null || this.SeedDatabase == null)
+            {
+                throw new ArgumentException("Cannot decrypt without seed database or crypto engine.");
+            }
+
             long size;
 
             if (!trim)
             {
                 outputStream.SetLength(this.Info.ImageSize);
             }
-            else 
+            else
             {
                 size = this.Info.Partitions[0].Offset;
 
@@ -100,15 +113,6 @@ namespace CTR.NET
                 using (MemoryMappedViewStream destHeaderViewStream = outputFile.CreateViewStream(0x0, this.Info.Partitions[0].Offset))
                 {
                     srcHeaderViewStream.CopyTo(destHeaderViewStream);
-                    destHeaderViewStream.Seek(0x1188, SeekOrigin.Begin);
-
-                    byte[] flags = destHeaderViewStream.ReadBytes(0x8);
-                    flags[3] = 0x0;
-                    flags[7] = 0x4;
-
-                    destHeaderViewStream.Seek(0x1188, SeekOrigin.Begin);
-                    destHeaderViewStream.Write(flags);
-
                 }
             }
 
@@ -116,9 +120,31 @@ namespace CTR.NET
             {
                 using (MemoryMappedViewStream destPartitionViewStream = outputFile.CreateViewStream(partition.Offset, partition.Size))
                 {
-                    NCCH ncch = new NCCH(this.NCSDMemoryMappedFile, partition.Offset, ce, seedDb);
+                    NCCH ncch = new NCCH(this.NCSDMemoryMappedFile, partition.Offset, this.Cryptor, this.SeedDatabase);
 
                     ncch.Decrypt(outputFile);
+                }
+            }
+
+            if (!trim)
+            {
+                NCSDPartition lastPartition = this.Info.Partitions.Last();
+
+                long lastPosition = lastPartition.Offset + lastPartition.Size;
+
+                using (MemoryMappedViewStream viewStream = outputFile.CreateViewStream(lastPosition, this.Info.ImageSize - lastPosition))
+                {
+                    while (viewStream.Position / 64 < viewStream.Length / 64)
+                    {
+                        byte[] buffer = new byte[64];
+
+                        for (int i = 0; i < buffer.Length; i++)
+                        {
+                            buffer[i] = 0xFF;
+                        }
+
+                        viewStream.Write(buffer, 0, buffer.Length);
+                    }
                 }
             }
         }

@@ -3,7 +3,7 @@ using System.Text;
 
 namespace CTR.NET
 {
-    public class TicketInfo
+    public class Ticket
     {
         public byte[] Raw { get; private set; }
         public Signature SignatureInfo { get; private set; }
@@ -27,7 +27,7 @@ namespace CTR.NET
         public byte[] ContentIndex { get; private set; }
         public int TicketSize { get; private set; }
 
-        public TicketInfo(byte[] ticket)
+        public Ticket(byte[] ticket)
         {
             this.Raw = ticket;
 

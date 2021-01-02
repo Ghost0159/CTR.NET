@@ -181,7 +181,7 @@ namespace CTR.NET
                 }
             }
 
-            return BitConverter.ToInt64(bytes, 0);
+            return BitConverter.ToInt64(bytes);
         }
 
         public static Int32 ToInt32(this byte[] bytes, bool isBigEndian = false)
@@ -194,7 +194,7 @@ namespace CTR.NET
                 }
             }
 
-            return BitConverter.ToInt32(bytes, 0);
+            return BitConverter.ToInt32(bytes);
         }
 
         public static Int16 ToInt16(this byte[] bytes, bool isBigEndian = false)
@@ -207,7 +207,7 @@ namespace CTR.NET
                 }
             }
 
-            return BitConverter.ToInt16(bytes, 0);
+            return BitConverter.ToInt16(bytes);
         }
 
         public static UInt64 ToUInt64(this byte[] bytes, bool isBigEndian = false)
@@ -220,7 +220,7 @@ namespace CTR.NET
                 }
             }
 
-            return BitConverter.ToUInt64(bytes, 0);
+            return BitConverter.ToUInt64(bytes);
         }
 
         public static UInt32 ToUInt32(this byte[] bytes, bool isBigEndian = false)
@@ -233,7 +233,7 @@ namespace CTR.NET
                 }
             }
 
-            return BitConverter.ToUInt32(bytes, 0);
+            return BitConverter.ToUInt32(bytes);
         }
 
         public static UInt16 ToUInt16(this byte[] bytes, bool isBigEndian = false)
@@ -246,7 +246,7 @@ namespace CTR.NET
                 }
             }
 
-            return BitConverter.ToUInt16(bytes, 0);
+            return BitConverter.ToUInt16(bytes);
         }
 
         public static float ToFloat(this byte[] bytes, bool isBigEndian = false)
@@ -259,7 +259,7 @@ namespace CTR.NET
                 }
             }
 
-            return BitConverter.ToSingle(bytes, 0);
+            return BitConverter.ToSingle(bytes);
         }
 
         public static byte[] PadRight(this byte[] input, byte padValue, int len)

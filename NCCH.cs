@@ -39,11 +39,6 @@ namespace CTR.NET
 
         public NCCH(FileStream ncchStream, CryptoEngine ce = null, SeedDatabase seedDb = null)
         {
-            if (!ncchStream.CanWrite)
-            {
-                throw new ArgumentException("Stream must be writable.");
-            }
-
             this.NCCHMemoryMappedFile = Tools.LoadFileMapped(ncchStream);
 
             Load(ce, seedDb);
@@ -123,6 +118,8 @@ namespace CTR.NET
                 Keyslot primaryKeyslot;
                 Keyslot secondaryKeyslot;
 
+                byte[] secondaryKeyY = new byte[16];
+
                 if (this.Info.Flags.UsesFixedKey)
                 {
                     primaryKeyslot = ((this.Info.TitleID & (0x10 << 32)) > 0) ? Keyslot.FixedSystemKey : Keyslot.ZeroKey;
@@ -131,7 +128,7 @@ namespace CTR.NET
                 else
                 {
                     primaryKeyslot = Keyslot.NCCH;
-                    secondaryKeyslot = this.Info.Flags.CryptoMethod switch
+                    secondaryKeyslot = secondaryKeyslot = this.Info.Flags.CryptoMethod switch
                     {
                         0x00 => Keyslot.NCCH,
                         0x01 => Keyslot.NCCH70,
@@ -139,14 +136,21 @@ namespace CTR.NET
                         0x0B => Keyslot.NCCH96,
                         _ => throw new Exception("Could not determine crypto type. This should NOT happen.")
                     };
+
+                    if (this.Info.Flags.UsesSeed)
+                    {
+                        this.Info.LoadSeed(this.SeedDB);
+
+                        secondaryKeyY = this.Info.SeededKeyY;
+                    }
+                    else
+                    {
+                        secondaryKeyY = this.Info.KeyY;
+                    }
                 }
 
                 this.Cryptor.SetKeyslot("y", (int)primaryKeyslot, this.Info.KeyY.ToUnsignedBigInt()); //load primary key into keyslot
-
-                if (!(secondaryKeyslot == Keyslot.NCCH))
-                {
-                    this.Cryptor.SetKeyslot("y", (int)secondaryKeyslot, this.Info.KeyY.ToUnsignedBigInt()); //load secondary key into keyslot
-                }
+                this.Cryptor.SetKeyslot("y", (int)secondaryKeyslot, secondaryKeyY.ToUnsignedBigInt()); //load secondary key into keyslot
 
                 //decrypts based on section
                 switch (region.Type)
@@ -224,7 +228,6 @@ namespace CTR.NET
                 output.Dispose();
             }
         }
-
         public void Decrypt(MemoryMappedFile outputFile)
         {
             foreach (NCCHRegion region in this.Regions)
@@ -238,6 +241,7 @@ namespace CTR.NET
                         destRegionViewStream.Seek(0x188, SeekOrigin.Begin);
 
                         byte[] flags = destRegionViewStream.ReadBytes(0x8);
+
                         flags[3] = 0x0;
                         flags[7] |= (0x1 << 0x2);
 
@@ -271,6 +275,7 @@ namespace CTR.NET
         private long Size { get; set; }
         public byte[] RawHeader { get; private set; }
         public byte[] KeyY { get; private set; }
+        public byte[] SeededKeyY { get; private set; }
         public byte[] Signature { get; private set; } //hex
         public string Magic { get; private set; } //UTF-8 plaintext
         public long ContentSize { get; private set; } //in media units
@@ -327,6 +332,35 @@ namespace CTR.NET
             this.RomFSHashRegionSize = ncchHeader.TakeItems(0x1B8, 0x1BC).ToInt32() * 0x200;
             this.ExeFSSuperBlockHash = ncchHeader.TakeItems(0x1C0, 0x1E0);
             this.RomFSSuperBlockHash = ncchHeader.TakeItems(0x1E0, 0x200);
+        }
+
+        public void LoadSeed(SeedDatabase seedDb)
+        {
+            if (seedDb == null)
+            {
+                throw new ArgumentException("NCCH uses seed crypto, no seed database is loaded");
+            }
+
+            byte[] tid = (BitConverter.IsLittleEndian) ? BitConverter.GetBytes(this.ProgramID) : BitConverter.GetBytes(this.ProgramID).FReverse();
+            byte[] seed = new byte[16];
+
+            try
+            {
+                seed = seedDb.Seeds[this.ProgramID];
+            }
+            catch (KeyNotFoundException)
+            {
+                throw new ArgumentException($"The specified seed database does not contain an entry for Title ID {tid.Hex()}.");
+            }
+
+            byte[] seedVerifyHash = Tools.HashSHA256(seed.MergeWith(tid));
+
+            if (!Enumerable.SequenceEqual(seedVerifyHash.TakeItems(0x0, 0x4), this.SeedVerifyHashPart))
+            {
+                throw new ArgumentException($"The specified seed database contains an invalid seed for title id {tid.Hex()}");
+            }
+
+            this.SeededKeyY = Tools.HashSHA256(this.KeyY.MergeWith(seed)).TakeItems(0x0, 0x10);
         }
 
         public override string ToString()
@@ -461,7 +495,6 @@ namespace CTR.NET
                 BigInteger ctrAsBigInt = ((BigInteger)tid << 64 | (BigInteger)(int)type << 56);
 
                 this.CTRInt = ctrAsBigInt;
-
                 this.CTR = ctrAsBigInt.ToCTRBytes();
             }
         }
@@ -513,7 +546,7 @@ namespace CTR.NET
             }
             else if ((ncchFlags[5] & 0x10) != 0)
             {
-                this.ContentType = "Trial (Demo?)";
+                this.ContentType = "Trial";
             }
         }
 

@@ -53,7 +53,7 @@ namespace CTR.NET
         {
             if (!this.Cryptor.NormalKey.ContainsKey(0x40))
             {
-                this.Cryptor.LoadTitleKeyFromTicket(this.Info.TicketData.Raw);
+                this.Cryptor.LoadTitleKeyFromTicket(this.Info.Ticket);
             }
 
             if (!this.Info.ActiveContents.Contains(contentRecord))
@@ -61,7 +61,7 @@ namespace CTR.NET
                 throw new ArgumentException($"The specified CIA does not contain content {contentRecord.GetContentName()}");
             }
 
-            long offset = this.Info.Regions.Find(r => r.Type == CIASection.Contents).Offset;
+            long offset = this.Info.Regions[CIASection.Contents].Offset;
 
             for (int i = 0; i < this.Info.ActiveContents.Count; i++)
             {
@@ -82,8 +82,9 @@ namespace CTR.NET
 
                 using (Aes aes = Aes.Create())
                 {
-                    aes.Key = this.Cryptor.NormalKey[0x40];
-                    aes.IV = BitConverter.GetBytes(contentRecord.ContentIndex).PadRight(0, 16);
+                    aes.Key = this.Cryptor.NormalKey[(int)Keyslot.DecryptedTitleKey];
+                    byte[] cindex = BitConverter.GetBytes(contentRecord.ContentIndex);
+                    aes.IV = (BitConverter.IsLittleEndian ? cindex.FReverse() : cindex).PadRight(0x00, 0x10);
                     aes.Padding = PaddingMode.Zeros;
                     aes.Mode = CipherMode.CBC;
 
@@ -99,6 +100,33 @@ namespace CTR.NET
             }
         }
 
+        public void ExtractSection(CIASection section, Stream outputStream, bool closeOutputStream)
+        {
+            CIARegion region;
+
+            try 
+            {
+                region = this.Info.Regions[section];
+            }
+            catch (KeyNotFoundException)
+            {
+                throw new ArgumentException($"Specified Section {Enum.GetName(typeof(CIASection), section)} was not found in this CIA.");
+            }
+
+            Tools.ExtractFileStreamPart(this.CIAMemoryMappedFile, outputStream, region.Offset, region.Size, closeOutputStream);
+        }
+
+        public void ExtractAllSections(DirectoryInfo outputDirectory)
+        {
+            foreach (KeyValuePair<CIASection, CIARegion> section in this.Info.Regions)
+            {
+                using (FileStream fs = File.Create($"{outputDirectory.FullName}/{Enum.GetName(typeof(CIASection), section.Key)}.bin"))
+                {
+                    Tools.ExtractFileStreamPart(this.CIAMemoryMappedFile, fs, section.Value.Offset, section.Value.Size, false);
+                }
+            }
+        }
+
         public void ExtractAllContents(DirectoryInfo outputDirectory)
         {
             if (this.Info.ActiveContents.Any(ac => ac.Flags.Encrypted) && this.Cryptor == null)
@@ -110,8 +138,13 @@ namespace CTR.NET
             {
                 ContentChunkRecord currentRecord = this.Info.ActiveContents[i];
 
-                ExtractContent(File.Create($"{outputDirectory.FullName}/{currentRecord.GetContentName()}"), currentRecord);
+                ExtractContent(File.Create($"{outputDirectory.FullName}/{currentRecord.GetContentName()}.ncch"), currentRecord);
             }
+        }
+
+        public void ExtractCompletely(DirectoryInfo outputDirectory)
+        {
+            ExtractAllContents(outputDirectory);
         }
 
         public void Dispose()
@@ -123,10 +156,9 @@ namespace CTR.NET
     {
         public static int AlignSize = 64;
         public List<ContentChunkRecord> ActiveContents { get; private set; }
-        public List<CIARegion> Regions { get; private set; }
-        public TicketInfo TicketData { get; private set; }
-        public TMDInfo TMD { get; private set; }
-        private string FilePath { get; set; }
+        public Dictionary<CIASection, CIARegion> Regions { get; private set; }
+        public Ticket Ticket { get; private set; }
+        public TMD TMD { get; private set; }
 
         public CIAInfo(Stream ciaStream)
         {
@@ -176,11 +208,11 @@ namespace CTR.NET
 
             ciaStream.Seek(tmdOffset, SeekOrigin.Begin);
 
-            this.TMD = new TMDInfo(ciaStream.ReadBytes(tmdSize));
+            this.TMD = new TMD(ciaStream.ReadBytes(tmdSize));
 
             ciaStream.Seek(ticketOffset, SeekOrigin.Begin);
 
-            this.TicketData = new TicketInfo(ciaStream.ReadBytes(ticketSize));
+            this.Ticket = new Ticket(ciaStream.ReadBytes(ticketSize));
 
             foreach (ContentChunkRecord ccr in this.TMD.ContentChunkRecords)
             {
@@ -195,20 +227,28 @@ namespace CTR.NET
 
             if (!Enumerable.SequenceEqual(ActiveContents, ActiveContentsInTmd))
             {
-                throw new ArgumentException("Invalid CIA Detected, contents defined in TMD do not match the contents defined in CIA.");
+                throw new ArgumentException("ERROR: contents defined in TMD do not match the contents defined in CIA");
             }
 
-            this.Regions = new List<CIARegion>();
+            this.Regions = new Dictionary<CIASection, CIARegion>();
 
-            this.Regions.AddIfExists(new CIARegion(CIASection.ArchiveHeader, 0x0, archiveHeaderSize));
-            this.Regions.AddIfExists(new CIARegion(CIASection.CertificateChain, certChainOffset, certChainSize));
-            this.Regions.AddIfExists(new CIARegion(CIASection.Ticket, ticketOffset, ticketSize));
-            this.Regions.AddIfExists(new CIARegion(CIASection.TitleMetadata, tmdOffset, tmdSize));
-            this.Regions.AddIfExists(new CIARegion(CIASection.Contents, contentOffset, contentSize));
-            this.Regions.AddIfExists(new CIARegion(CIASection.Meta, metaOffset, metaSize));
+            AddRegionIfExists(CIASection.ArchiveHeader, new CIARegion(CIASection.ArchiveHeader, 0x0, archiveHeaderSize));
+            AddRegionIfExists(CIASection.CertificateChain, new CIARegion(CIASection.CertificateChain, certChainOffset, certChainSize));
+            AddRegionIfExists(CIASection.Ticket, new CIARegion(CIASection.Ticket, ticketOffset, ticketSize));
+            AddRegionIfExists(CIASection.TitleMetadata, new CIARegion(CIASection.TitleMetadata, tmdOffset, tmdSize));
+            AddRegionIfExists(CIASection.Contents, new CIARegion(CIASection.Contents, contentOffset, contentSize));
+            AddRegionIfExists(CIASection.Meta, new CIARegion(CIASection.Meta, metaOffset, metaSize));
         }
 
-        public static TMDInfo GetTMD(byte[] header)
+        private void AddRegionIfExists(CIASection section, CIARegion ciaRegion)
+        {
+            if (ciaRegion.Size != 0)
+            {
+                this.Regions[section] = ciaRegion;
+            }
+        }
+
+        public static TMD GetTMD(byte[] header)
         {
             int certChainSize = header.TakeItems(0x8, 0xC).ToInt32();
             int ticketSize = header.TakeItems(0xC, 0x10).ToInt32();
@@ -218,13 +258,13 @@ namespace CTR.NET
             int ticketOffset = certChainOffset + Tools.RoundUp(certChainSize, AlignSize);
             int tmdOffset = ticketOffset + Tools.RoundUp(ticketSize, AlignSize);
 
-            return new TMDInfo(header.TakeItems(tmdOffset, tmdOffset + tmdSize), true);
+            return new TMD(header.TakeItems(tmdOffset, tmdOffset + tmdSize), true);
         }
     }
 
     public class CIARegion
     {
-        public CIASection Type { get; set; }
+        public CIASection Type { get; private set; }
         public long Offset { get; private set; }
         public long Size { get; private set; }
 

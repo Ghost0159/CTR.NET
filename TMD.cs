@@ -6,7 +6,7 @@ using System.Text;
 
 namespace CTR.NET
 {
-    public class TMDInfo
+    public class TMD
     {
         public static readonly int ChunkRecordSize = 0x30;
 
@@ -36,7 +36,7 @@ namespace CTR.NET
         public byte[] AccessRights { get; private set; }
         public byte[] BootContent { get; private set; }
 
-        public TMDInfo(byte[] tmdBytes, bool verifyHashes = true)
+        public TMD(byte[] tmdBytes, bool verifyHashes = true)
         {
             this.RawData = tmdBytes;
 

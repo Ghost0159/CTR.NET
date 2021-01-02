@@ -37,8 +37,8 @@ namespace CTR.NET.Crypto
         //Special Key for NCCH that used fixed crypto
         FixedSystemKey = 0x42,
 
-        //Sector 0x96 (New Nintendo 3DS only)
-        New3DSKeySector = 0x43
+        //Special Keyslot for seeded keys
+        SeededKey = 0x43
     }
 
     public class CryptoEngine
@@ -177,14 +177,9 @@ namespace CTR.NET.Crypto
             this.NormalKey[keyslot] = key;
         }
 
-        public void LoadTitleKeyFromTicket(byte[] ticket)
+        public void LoadTitleKeyFromTicket(Ticket ticket)
         {
-            if (ticket.Length < 0x2AC)
-            {
-                throw new ArgumentException($"Specified ticket was expected to be at least 684 (0x2AC) bytes long, but instead, was {ticket.Length} ({ticket.Length:X}) bytes long");
-            }
-
-            DecryptTitlekey(ticket.TakeItems(0x1BF, 0x1CF), ticket[0x1F1], ticket.TakeItems(0x1DC, 0x1E4));
+            DecryptTitlekey(ticket.Titlekey, ticket.CommonKeyYIndex, ticket.TitleID);
         }
 
         public void DecryptTitlekey(byte[] titlekey, int commonKeyIndex, byte[] titleId)
@@ -213,9 +208,14 @@ namespace CTR.NET.Crypto
                         cs.FlushFinalBlock();
                     }
 
-                    SetNormalKey((int)Keyslot.DecryptedTitleKey, ms.ToArray().TakeItems(0, 16));
+                    LoadDecryptedTitleKey(ms.ToArray().TakeItems(0, 16));
                 }
             }
+        }
+
+        public void LoadDecryptedTitleKey(byte[] key)
+        {
+            SetNormalKey((int)Keyslot.DecryptedTitleKey, key);
         }
     }
 }
