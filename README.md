@@ -11,11 +11,12 @@ I will try to expand this library to support the most 3DS types.
 Features:
 
 - CIA (.cia) Extacting Contents, Header Information
-- NCSD (.3ds/.cci) Extracting Contents, Header Information
+- CDN Contents Decryption
+- NCSD (.3ds/.cci) Extracting Contents, Decryption, Header Information
 - TMD (Title Metadata) (.tmd) General Information, Extensive Header Information
 - Ticket (.tik, ticket.bin) General Information
 - SMDH (icon.bin, icon.smdh) General Information, HOME Menu Options, etc.
 - NCCH (.cxi/.cfa) Decryption and Extraction of contents, Header Information
 - ExeFS (.exefs) Extraction and Creation (maybe .code decompression soon)
 - RomFS (.romfs) Extraction
-- Crypto Engine that is able to decrypt CIA and NCCH containers
+- Crypto Engine that is able to decrypt NCSD, NCCH, CIA (only CIA level decryption, not NCCH \[yet\]) containers
