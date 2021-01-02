@@ -49,6 +49,9 @@ namespace CTR.NET
         {
             foreach (ContentChunkRecord ccr in this.TMD.ContentChunkRecords)
             {
+                if (!File.Exists($"{this.ContentDir.FullName}/{ccr.ID.ToString("x8")}"))
+                    continue;
+
                 using (FileStream inputFs = File.OpenRead($"{this.ContentDir.FullName}/{ccr.ID.ToString("x8")}"))
                 {
                     using (Aes aes = Aes.Create())
